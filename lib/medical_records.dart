@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // Flutter UI widgets
 
+// NOTE: StatefulWidget because the screen changes when the user types in the
+// search box (searchQuery changes -> list must refresh).
 class MedicalRecordsPage extends StatefulWidget {
   const MedicalRecordsPage({super.key});
 
@@ -10,6 +12,8 @@ class MedicalRecordsPage extends StatefulWidget {
 class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
   // ==============================================================
   // DEMO CURRENT STUDENT
+  // NOTE: Fixed demo student. In a real app this comes from login
+  // (Firebase Auth / user profile).
   // ==============================================================
 
   final String currentStudentName = 'Rahim Ahmed';
@@ -18,6 +22,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // SEARCH
+  // NOTE: Stores the text typed in the search box.
   // ==============================================================
 
   String searchQuery = '';
@@ -25,9 +30,12 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
   // ==============================================================
   // DEMO MEDICAL RECORDS
   // Later these can come from Firebase / backend.
+  // NOTE: Hard-coded sample data (3 visits) so the UI can be tested
+  // without a database.
   // ==============================================================
 
   final List<MedicalRecord> medicalRecords = [
+    // ---- Record 1: Flu & Fever ----
     MedicalRecord(
       id: 'REC-2023-001',
       studentId: 'CSE-21001',
@@ -39,12 +47,14 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       doctorDept: 'General Medicine',
       chiefComplaint: 'Fever, headache and body weakness',
       symptoms: 'Fever, headache, mild cough',
+      // Vitals = body measurements taken at the visit
       vitals: Vitals(
         bloodPressure: '120/80 mmHg',
         temperature: '101.2°F',
         pulseRate: '88 bpm',
-        spO2: '98%',
+        spO2: '98%', // Oxygen saturation
       ),
+      // List of medicines given by the doctor
       prescriptions: [
         Prescription(
           medicineName: 'Paracetamol 500mg',
@@ -73,6 +83,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       followUpDate: 'Oct 17, 2023',
     ),
 
+    // ---- Record 2: Wrist strain ----
     MedicalRecord(
       id: 'REC-2023-002',
       studentId: 'CSE-21001',
@@ -109,6 +120,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       followUpDate: 'Sep 12, 2023',
     ),
 
+    // ---- Record 3: Gastritis ----
     MedicalRecord(
       id: 'REC-2023-003',
       studentId: 'CSE-21001',
@@ -136,19 +148,23 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
           instructions: 'Take before eating.',
         ),
       ],
-      testsRecommended: [],
+      testsRecommended: [], // No tests -> "tests" section will be hidden
       treatmentAdvice:
           'Avoid spicy and oily food. Maintain regular meal times and '
           'drink adequate water throughout the day.',
-      followUpDate: null,
+      followUpDate: null, // No follow-up -> follow-up line will be hidden
     ),
   ];
 
   // ==============================================================
   // FILTER RECORDS
+  // NOTE: A "getter" - returns the list that should be displayed.
+  // Step 1: keep only records of the current student.
+  // Step 2: if the user typed something, filter by that text.
   // ==============================================================
 
   List<MedicalRecord> get filteredRecords {
+    // Step 1: only this student's records (match by ID or first name)
     final studentRecords = medicalRecords.where(
       (record) {
         return record.studentId == currentStudentId ||
@@ -158,12 +174,14 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       },
     ).toList();
 
+    // No search text -> show all of the student's records
     if (searchQuery.trim().isEmpty) {
       return studentRecords;
     }
 
-    final query = searchQuery.toLowerCase();
+    final query = searchQuery.toLowerCase(); // Ignore upper/lower case
 
+    // Step 2: search in diagnosis, doctor name, date and complaint
     return studentRecords.where(
       (record) {
         return record.diagnosis.toLowerCase().contains(query) ||
@@ -176,22 +194,22 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // BUILD
+  // NOTE: Main screen = AppBar + scrollable body (header + records list).
   // ==============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: const Color(0xFFF5F7FB), // Light page background
 
       // ============================================================
       // APP BAR
       // ============================================================
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFF003D9B),
+        backgroundColor: const Color(0xFF003D9B), // Dark blue
         foregroundColor: Colors.white,
         elevation: 0,
-
         title: const Text(
           'Medical Records',
           style: TextStyle(
@@ -202,26 +220,26 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
       // ============================================================
       // BODY
+      // NOTE: Center + ConstrainedBox(maxWidth 900) keeps content from
+      // becoming too wide on big screens (tablet / web).
       // ============================================================
 
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: 900,
               ),
-
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(),
+                  _buildHeader(), // Title + search box
 
                   const SizedBox(height: 24),
 
-                  _buildRecordsList(),
+                  _buildRecordsList(), // All record cards
 
                   const SizedBox(height: 30),
                 ],
@@ -235,6 +253,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // HEADER
+  // NOTE: Page title, short description and the search box.
   // ==============================================================
 
   Widget _buildHeader() {
@@ -263,26 +282,26 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
         const SizedBox(height: 16),
 
         // SEARCH BOX
+        // NOTE: onChanged runs on every key press -> updates searchQuery
+        // -> setState rebuilds the screen -> list is filtered live.
         TextField(
           onChanged: (value) {
             setState(() {
               searchQuery = value;
             });
           },
-
           decoration: InputDecoration(
             hintText: 'Search records or diagnoses...',
-
             hintStyle: const TextStyle(
               fontSize: 12,
               color: Color(0xFF737685),
             ),
-
             prefixIcon: const Icon(
               Icons.search,
               color: Color(0xFF737685),
             ),
 
+            // Clear (X) button appears only when something is typed
             suffixIcon: searchQuery.isNotEmpty
                 ? IconButton(
                     tooltip: 'Clear',
@@ -302,20 +321,19 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             filled: true,
             fillColor: Colors.white,
 
+            // Border styles: normal, enabled, and focused (blue, thicker)
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
                 color: Color(0xFFC3C6D6),
               ),
             ),
-
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
                 color: Color(0xFFC3C6D6),
               ),
             ),
-
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(
@@ -323,7 +341,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                 width: 1.5,
               ),
             ),
-
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 14,
@@ -336,6 +353,8 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // RECORDS LIST
+  // NOTE: If no record matches -> show empty message.
+  // Otherwise create one card for each record.
   // ==============================================================
 
   Widget _buildRecordsList() {
@@ -359,14 +378,15 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // RECORD CARD
+  // NOTE: Short summary card of one visit (date, diagnosis, doctor,
+  // complaint) with a "View Full Report" button.
   // ==============================================================
 
   Widget _buildRecordCard(MedicalRecord record) {
     return Container(
       width: double.infinity,
-
       padding: const EdgeInsets.all(18),
-
+      // White rounded card with border and soft shadow
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -381,12 +401,12 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
           ),
         ],
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ========================================================
           // DATE + STATUS
+          // NOTE: Date and time on the left, "Completed" badge on right.
           // ========================================================
 
           Row(
@@ -405,9 +425,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                         color: Color(0xFF737685),
                       ),
                     ),
-
                     const SizedBox(height: 3),
-
                     Text(
                       record.time,
                       style: const TextStyle(
@@ -420,12 +438,12 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                 ),
               ),
 
+              // "Completed" badge
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 5,
                 ),
-
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0F3FF),
                   borderRadius: BorderRadius.circular(20),
@@ -433,7 +451,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                     color: const Color(0xFFC3C6D6),
                   ),
                 ),
-
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -442,9 +459,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                       size: 13,
                       color: Color(0xFF003D9B),
                     ),
-
                     SizedBox(width: 4),
-
                     Text(
                       'Completed',
                       style: TextStyle(
@@ -469,6 +484,8 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
           // ========================================================
           // DIAGNOSIS
+          // NOTE: Main title of the card + doctor name and department
+          // + chief complaint (max 2 lines, "..." if longer).
           // ========================================================
 
           Text(
@@ -490,9 +507,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                 size: 17,
                 color: Color(0xFF00687A),
               ),
-
               const SizedBox(width: 7),
-
               Expanded(
                 child: Text(
                   '${record.doctorName}, ${record.doctorDept}',
@@ -522,6 +537,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
           // ========================================================
           // VIEW REPORT BUTTON
+          // NOTE: Opens a popup (dialog) with the full report.
           // ========================================================
 
           SizedBox(
@@ -530,16 +546,13 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
               onPressed: () {
                 _showMedicalReport(record);
               },
-
               icon: const Icon(
                 Icons.arrow_forward,
                 size: 15,
               ),
-
               label: const Text(
                 'View Full Report',
               ),
-
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF003D9B),
                 side: const BorderSide(
@@ -565,14 +578,13 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // EMPTY STATE
+  // NOTE: Shown when there are no records (or search finds nothing).
   // ==============================================================
 
   Widget _buildEmptyState() {
     return Container(
       width: double.infinity,
-
       padding: const EdgeInsets.all(30),
-
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
@@ -580,7 +592,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
           color: const Color(0xFFC3C6D6),
         ),
       ),
-
       child: Column(
         children: [
           const Icon(
@@ -588,9 +599,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             size: 45,
             color: Color(0xFF737685),
           ),
-
           const SizedBox(height: 10),
-
           const Text(
             'No medical records found',
             style: TextStyle(
@@ -599,9 +608,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
               color: Color(0xFF111C2D),
             ),
           ),
-
           const SizedBox(height: 5),
-
           const Text(
             'Past consultations and prescriptions will be logged here automatically.',
             textAlign: TextAlign.center,
@@ -617,35 +624,34 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // SHOW FULL MEDICAL REPORT
+  // NOTE: Opens a popup dialog. Structure of the popup:
+  //   Header (blue)  -> Body (scrollable)  -> Footer (Print / Close)
+  // barrierDismissible: true = tapping outside closes the popup.
   // ==============================================================
 
   void _showMedicalReport(MedicalRecord record) {
     showDialog(
       context: context,
       barrierDismissible: true,
-
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.all(14),
-
           child: Container(
             constraints: const BoxConstraints(
               maxWidth: 700,
               maxHeight: 800,
             ),
-
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(24),
             ),
-
-            clipBehavior: Clip.antiAlias,
-
+            clipBehavior: Clip.antiAlias, // Cuts content to rounded corners
             child: Column(
               children: [
                 _buildReportHeader(record),
 
+                // Expanded + SingleChildScrollView = body scrolls if long
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
@@ -664,16 +670,14 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // REPORT HEADER
+  // NOTE: Blue top bar: center name, title, Ref ID + date, close (X).
   // ==============================================================
 
   Widget _buildReportHeader(MedicalRecord record) {
     return Container(
       width: double.infinity,
-
       padding: const EdgeInsets.all(20),
-
       color: const Color(0xFF003D9B),
-
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -690,9 +694,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                     color: Color(0xFF6AE1FF),
                   ),
                 ),
-
                 const SizedBox(height: 6),
-
                 const Text(
                   'Official Digital Prescription Slip',
                   style: TextStyle(
@@ -701,9 +703,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                     color: Colors.white,
                   ),
                 ),
-
                 const SizedBox(height: 5),
-
                 Text(
                   'Ref ID: ${record.id} • Date: ${record.date}',
                   style: const TextStyle(
@@ -715,11 +715,11 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             ),
           ),
 
+          // Close button -> closes the popup
           IconButton(
             onPressed: () {
               Navigator.pop(context);
             },
-
             icon: const Icon(
               Icons.close,
               color: Colors.white,
@@ -732,6 +732,8 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // REPORT BODY
+  // NOTE: All details in order: Doctor+Patient, Vitals, Complaint &
+  // Diagnosis, Prescriptions, Tests, Advice, Follow-up.
   // ==============================================================
 
   Widget _buildReportBody(MedicalRecord record) {
@@ -740,13 +742,14 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       children: [
         // ==========================================================
         // DOCTOR + PATIENT
+        // NOTE: LayoutBuilder checks available width.
+        // Narrow screen (< 450) -> stack vertically.
+        // Wide screen -> show side by side with a divider line.
         // ==========================================================
 
         Container(
           width: double.infinity,
-
           padding: const EdgeInsets.all(15),
-
           decoration: BoxDecoration(
             color: const Color(0xFFF9F9FF),
             borderRadius: BorderRadius.circular(16),
@@ -754,7 +757,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
               color: const Color(0xFFC3C6D6),
             ),
           ),
-
           child: LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth < 450) {
@@ -773,15 +775,12 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                   Expanded(
                     child: _doctorMetadata(record),
                   ),
-
                   Container(
                     width: 1,
                     height: 80,
                     color: const Color(0xFFC3C6D6),
                   ),
-
                   const SizedBox(width: 18),
-
                   Expanded(
                     child: _patientMetadata(record),
                   ),
@@ -795,6 +794,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
         // ==========================================================
         // VITALS
+        // NOTE: "if (...) ...[ ]" = show this block only when vitals exist.
         // ==========================================================
 
         if (record.vitals != null) ...[
@@ -802,11 +802,8 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             Icons.monitor_heart_outlined,
             'CLINICAL VITALS RECORDED',
           ),
-
           const SizedBox(height: 10),
-
-          _buildVitals(record.vitals!),
-
+          _buildVitals(record.vitals!), // "!" = we know it is not null here
           const SizedBox(height: 20),
         ],
 
@@ -826,20 +823,17 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
           Icons.medication_outlined,
           'PRESCRIBED MEDICINES (Rx)',
         ),
-
         const SizedBox(height: 10),
-
         _buildPrescriptionList(record),
-
         const SizedBox(height: 20),
 
         // ==========================================================
         // TESTS
+        // NOTE: Hidden if no tests were recommended.
         // ==========================================================
 
         if (record.testsRecommended.isNotEmpty) ...[
           _buildRecommendedTests(record),
-
           const SizedBox(height: 20),
         ],
 
@@ -853,6 +847,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
         // ==========================================================
         // FOLLOW UP
+        // NOTE: Hidden if followUpDate is null.
         // ==========================================================
 
         if (record.followUpDate != null)
@@ -863,9 +858,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                 size: 18,
                 color: Color(0xFF00687A),
               ),
-
               const SizedBox(width: 7),
-
               Text(
                 'Follow-up Review Date: ${record.followUpDate}',
                 style: const TextStyle(
@@ -882,6 +875,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // DOCTOR METADATA
+  // NOTE: Small block showing physician name and department.
   // ==============================================================
 
   Widget _doctorMetadata(MedicalRecord record) {
@@ -896,9 +890,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             color: Color(0xFF737685),
           ),
         ),
-
         const SizedBox(height: 4),
-
         Text(
           record.doctorName,
           style: const TextStyle(
@@ -907,9 +899,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             color: Color(0xFF003D9B),
           ),
         ),
-
         const SizedBox(height: 3),
-
         Text(
           record.doctorDept,
           style: const TextStyle(
@@ -923,6 +913,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // PATIENT METADATA
+  // NOTE: Small block showing student name, ID and department.
   // ==============================================================
 
   Widget _patientMetadata(MedicalRecord record) {
@@ -937,9 +928,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             color: Color(0xFF737685),
           ),
         ),
-
         const SizedBox(height: 4),
-
         Text(
           record.studentName,
           style: const TextStyle(
@@ -948,9 +937,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             color: Color(0xFF111C2D),
           ),
         ),
-
         const SizedBox(height: 3),
-
         Text(
           'ID: ${record.studentId} • Dept: $currentStudentDepartment',
           style: const TextStyle(
@@ -964,6 +951,8 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // REPORT SECTION TITLE
+  // NOTE: Reusable small heading (icon + text). Used by several sections
+  // so we do not repeat the same code.
   // ==============================================================
 
   Widget _reportSectionTitle(
@@ -977,9 +966,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
           size: 16,
           color: const Color(0xFF00687A),
         ),
-
         const SizedBox(width: 6),
-
         Text(
           title,
           style: const TextStyle(
@@ -995,6 +982,8 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // VITALS
+  // NOTE: Builds a small tile for each vital that is not null, then
+  // shows them in a grid (4 columns if 4 items, otherwise 2).
   // ==============================================================
 
   Widget _buildVitals(Vitals vitals) {
@@ -1041,24 +1030,23 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
       crossAxisSpacing: 8,
       mainAxisSpacing: 8,
       childAspectRatio: 1.5,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true, // Grid takes only the space it needs
+      physics: const NeverScrollableScrollPhysics(), // Parent already scrolls
       children: items,
     );
   }
 
+  // NOTE: One small tile: title (e.g. "Pulse") and value (e.g. "88 bpm").
   Widget _vitalItem(
     String title,
     String value,
   ) {
     return Container(
       padding: const EdgeInsets.all(10),
-
       decoration: BoxDecoration(
         color: const Color(0xFFF0F3FF),
         borderRadius: BorderRadius.circular(12),
       ),
-
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1070,9 +1058,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
               color: Color(0xFF737685),
             ),
           ),
-
           const SizedBox(height: 4),
-
           Text(
             value,
             textAlign: TextAlign.center,
@@ -1089,6 +1075,8 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // COMPLAINT + DIAGNOSIS
+  // NOTE: Two colored boxes: yellow = complaint & symptoms,
+  // blue = clinical diagnosis.
   // ==============================================================
 
   Widget _buildComplaintAndDiagnosis(
@@ -1096,11 +1084,10 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
   ) {
     return Column(
       children: [
+        // Yellow box: chief complaint + symptoms
         Container(
           width: double.infinity,
-
           padding: const EdgeInsets.all(13),
-
           decoration: BoxDecoration(
             color: const Color(0xFFFFF8E8),
             borderRadius: BorderRadius.circular(12),
@@ -1108,7 +1095,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
               color: const Color(0xFFFFD88A),
             ),
           ),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1120,9 +1106,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                   color: Color(0xFF795500),
                 ),
               ),
-
               const SizedBox(height: 4),
-
               Text(
                 '${record.chiefComplaint} (${record.symptoms})',
                 style: const TextStyle(
@@ -1136,11 +1120,10 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
         const SizedBox(height: 10),
 
+        // Blue box: diagnosis
         Container(
           width: double.infinity,
-
           padding: const EdgeInsets.all(13),
-
           decoration: BoxDecoration(
             color: const Color(0xFFE7EEFF),
             borderRadius: BorderRadius.circular(12),
@@ -1148,7 +1131,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
               color: const Color(0xFF003D9B).withOpacity(0.2),
             ),
           ),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1160,9 +1142,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                   color: Color(0xFF003D9B),
                 ),
               ),
-
               const SizedBox(height: 4),
-
               Text(
                 record.diagnosis,
                 style: const TextStyle(
@@ -1180,6 +1160,10 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // PRESCRIPTION LIST
+  // NOTE: A table-like layout.
+  // Row 1 = header (Medicine | Dosage | Duration).
+  // Then one row for every medicine, with timing + instructions below.
+  // If there are no medicines, a short italic message is shown.
   // ==============================================================
 
   Widget _buildPrescriptionList(
@@ -1198,24 +1182,20 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
     return Container(
       width: double.infinity,
-
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: const Color(0xFFC3C6D6),
         ),
       ),
-
       clipBehavior: Clip.antiAlias,
-
       child: Column(
         children: [
           // Header
+          // NOTE: flex 2 / 2 / 1 = column width ratio.
           Container(
             padding: const EdgeInsets.all(10),
-
             color: const Color(0xFFF0F3FF),
-
             child: const Row(
               children: [
                 Expanded(
@@ -1229,7 +1209,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                     ),
                   ),
                 ),
-
                 Expanded(
                   flex: 2,
                   child: Text(
@@ -1241,7 +1220,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                     ),
                   ),
                 ),
-
                 Expanded(
                   child: Text(
                     'Duration',
@@ -1256,11 +1234,12 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             ),
           ),
 
+          // One row for each medicine ("rx" = prescription item)
           ...record.prescriptions.map(
             (rx) {
               return Container(
                 padding: const EdgeInsets.all(10),
-
+                // Thin line on top to separate rows
                 decoration: const BoxDecoration(
                   border: Border(
                     top: BorderSide(
@@ -1268,13 +1247,13 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                     ),
                   ),
                 ),
-
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Medicine name
                         Expanded(
                           flex: 2,
                           child: Text(
@@ -1287,6 +1266,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                           ),
                         ),
 
+                        // Dosage + how many times a day
                         Expanded(
                           flex: 2,
                           child: Text(
@@ -1299,6 +1279,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                           ),
                         ),
 
+                        // For how many days
                         Expanded(
                           child: Text(
                             rx.duration,
@@ -1313,6 +1294,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
                     const SizedBox(height: 6),
 
+                    // When to take + special instructions
                     Text(
                       '${rx.timing} - ${rx.instructions}',
                       style: const TextStyle(
@@ -1332,6 +1314,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // RECOMMENDED TESTS
+  // NOTE: Bullet list of tests suggested by the doctor.
   // ==============================================================
 
   Widget _buildRecommendedTests(
@@ -1348,14 +1331,13 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             color: Color(0xFF111C2D),
           ),
         ),
-
         const SizedBox(height: 6),
 
+        // One bullet row for each test
         ...record.testsRecommended.map(
           (test) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 4),
-
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1366,7 +1348,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                       color: Color(0xFF003D9B),
                     ),
                   ),
-
                   Expanded(
                     child: Text(
                       test,
@@ -1387,6 +1368,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // ADVICE
+  // NOTE: Doctor's written advice inside a light box.
   // ==============================================================
 
   Widget _buildAdvice(
@@ -1403,14 +1385,10 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             color: Color(0xFF111C2D),
           ),
         ),
-
         const SizedBox(height: 6),
-
         Container(
           width: double.infinity,
-
           padding: const EdgeInsets.all(13),
-
           decoration: BoxDecoration(
             color: const Color(0xFFF9F9FF),
             borderRadius: BorderRadius.circular(12),
@@ -1418,12 +1396,11 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
               color: const Color(0xFFC3C6D6),
             ),
           ),
-
           child: Text(
             record.treatmentAdvice,
             style: const TextStyle(
               fontSize: 10,
-              height: 1.5,
+              height: 1.5, // Line spacing for easy reading
               color: Color(0xFF434654),
             ),
           ),
@@ -1434,12 +1411,13 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // REPORT FOOTER
+  // NOTE: Bottom bar of the popup: hospital text, Print button
+  // (only shows a message for now), and Close button.
   // ==============================================================
 
   Widget _buildReportFooter() {
     return Container(
       padding: const EdgeInsets.all(14),
-
       decoration: const BoxDecoration(
         color: Color(0xFFF5F5F7),
         border: Border(
@@ -1448,7 +1426,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
           ),
         ),
       ),
-
       child: Row(
         children: [
           const Expanded(
@@ -1461,22 +1438,20 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
             ),
           ),
 
+          // Print button (placeholder - real printing not connected yet)
           OutlinedButton.icon(
             onPressed: () {
               _showMessage(
                 'Print feature can be connected to the printing package.',
               );
             },
-
             icon: const Icon(
               Icons.print_outlined,
               size: 15,
             ),
-
             label: const Text(
               'Print',
             ),
-
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF003D9B),
               side: const BorderSide(
@@ -1491,11 +1466,11 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
           const SizedBox(width: 7),
 
+          // Close button -> closes the popup
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
             },
-
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF003D9B),
               foregroundColor: Colors.white,
@@ -1507,7 +1482,6 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-
             child: const Text(
               'Close',
             ),
@@ -1519,6 +1493,7 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
   // ==============================================================
   // SNACKBAR
+  // NOTE: Shows a small message at the bottom of the screen.
   // ==============================================================
 
   void _showMessage(String message) {
@@ -1533,10 +1508,13 @@ class _MedicalRecordsPageState extends State<MedicalRecordsPage> {
 
 // ====================================================================
 // MEDICAL RECORD MODEL
+// NOTE: Data class - holds all information of ONE medical visit.
+// "final" = value cannot change after creation.
+// "String?" = value can be null (optional).
 // ====================================================================
 
 class MedicalRecord {
-  final String id;
+  final String id; // Record reference number
   final String studentId;
   final String studentName;
 
@@ -1548,18 +1526,18 @@ class MedicalRecord {
   final String doctorName;
   final String doctorDept;
 
-  final String chiefComplaint;
+  final String chiefComplaint; // Main reason for visit
   final String symptoms;
 
-  final Vitals? vitals;
+  final Vitals? vitals; // Optional body measurements
 
-  final List<Prescription> prescriptions;
+  final List<Prescription> prescriptions; // Medicines given
 
-  final List<String> testsRecommended;
+  final List<String> testsRecommended; // Suggested lab tests
 
   final String treatmentAdvice;
 
-  final String? followUpDate;
+  final String? followUpDate; // Optional next visit date
 
   const MedicalRecord({
     required this.id,
@@ -1582,13 +1560,15 @@ class MedicalRecord {
 
 // ====================================================================
 // VITALS MODEL
+// NOTE: Body measurements. All fields are optional (can be null),
+// so the report shows only the values that exist.
 // ====================================================================
 
 class Vitals {
   final String? bloodPressure;
   final String? temperature;
   final String? pulseRate;
-  final String? spO2;
+  final String? spO2; // Blood oxygen level
 
   const Vitals({
     this.bloodPressure,
@@ -1600,6 +1580,8 @@ class Vitals {
 
 // ====================================================================
 // PRESCRIPTION MODEL
+// NOTE: One medicine entry: name, how much, how often, how long, when
+// to take, and extra instructions.
 // ====================================================================
 
 class Prescription {
