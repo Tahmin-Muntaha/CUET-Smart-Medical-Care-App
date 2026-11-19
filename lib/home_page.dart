@@ -1,7 +1,5 @@
 // ============================================================
-// SIDE NOTES ADDED FOR VIVA / DEMO.
-// Lines starting with  // >>  are explanation comments only.
-// The original code is unchanged.
+
 //
 // QUICK FLOW OF THIS FILE:
 //  App opens -> LandingPage.build() draws 7 sections top to bottom
