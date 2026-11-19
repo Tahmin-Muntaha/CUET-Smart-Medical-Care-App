@@ -1,7 +1,4 @@
-// ============================================================
-// SIDE NOTES ADDED FOR VIVA / DEMO.
-// Lines starting with  // >>  are explanation comments only.
-// The original code is unchanged.
+
 //
 // QUICK FLOW OF THIS FILE:
 //  Open page -> choose Student/Doctor (setState) -> fill form
