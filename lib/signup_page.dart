@@ -1,9 +1,24 @@
+// ============================================================
+// SIDE NOTES ADDED FOR VIVA / DEMO.
+// Lines starting with  // >>  are explanation comments only.
+// The original code is unchanged.
+//
+// QUICK FLOW OF THIS FILE:
+//  Open page -> choose Student/Doctor (setState) -> fill form
+//  -> tap button -> handleSignUp():
+//     validate -> Firebase Auth creates account -> Firestore saves profile
+//     -> student: go to Landing | doctor: sign out + wait for admin approval
+// ============================================================
+
+// >> NOTE: IMPORTS: material = UI widgets | firebase_auth = login/account creation | cloud_firestore = database | home_page = LandingPage to go back to.
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'home_page.dart'; // LandingPage is defined here
 
+// >> NOTE: SCREEN: Sign Up page for BOTH student and doctor.
+// >>       StatefulWidget because the screen changes (toggle, loading spinner, password show/hide) -> uses setState().
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -11,10 +26,14 @@ class SignUpPage extends StatefulWidget {
   State<SignUpPage> createState() => _SignUpPageState();
 }
 
+// >> NOTE: STATE CLASS: all variables + functions of the sign-up screen live here.
 class _SignUpPageState extends State<SignUpPage> {
+  // >> NOTE: isStudent: true = Student form, false = Doctor form. The toggle button changes it.
   bool isStudent = true;
+  // >> NOTE: isLoading: true while Firebase is working -> button is disabled and shows a spinner (prevents double click).
   bool isLoading = false;
 
+  // >> NOTE: CONTROLLERS: one per text field. They read what the user typed (e.g. nameController.text).
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
@@ -22,17 +41,25 @@ class _SignUpPageState extends State<SignUpPage> {
   final sessionController = TextEditingController();
   final licenseNumberController = TextEditingController();
 
+  // >> NOTE: obscurePassword: true = password shown as dots. The eye icon flips it.
   bool obscurePassword = true;
 
+  // >> NOTE: Fixed CUET student email domain. Student email = u + StudentID + this domain.
   static const String _studentEmailDomain = '@student.cuet.ac.bd';
 
   @override
+  // >> NOTE: initState(): runs once when the screen opens.
+  // >>       Here we attach a listener so the email updates automatically when the Student ID changes.
   void initState() {
     super.initState();
     // Keep the student's email in sync with their Student ID automatically.
+    // >> NOTE: LISTENER: every time the user types in Student ID, _syncStudentEmail() runs.
     studentIdController.addListener(_syncStudentEmail);
   }
 
+  // >> NOTE: AUTO EMAIL: for students the email is generated from the ID.
+  // >>       Example: ID 2204030  ->  u2204030@student.cuet.ac.bd
+  // >>       Doctors skip this (return) because they type their own email.
   void _syncStudentEmail() {
     if (!isStudent) return;
     final id = studentIdController.text.trim();
@@ -42,6 +69,7 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   @override
+  // >> NOTE: dispose(): cleanup when leaving the screen. Remove listener and free all controllers (avoids memory leak).
   void dispose() {
     studentIdController.removeListener(_syncStudentEmail);
     nameController.dispose();
@@ -53,7 +81,11 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
+  // >> NOTE: MAIN BACKEND FUNCTION - runs when the user taps the button.
+  // >>       FLOW: 1) validate inputs  2) show loading  3) create account in Firebase Auth  4) save profile in Firestore  5) navigate  6) handle errors  7) stop loading.
+  // >>       async/await = wait for Firebase without freezing the app.
   Future<void> handleSignUp() async {
+    // >> NOTE: STEP 1 - VALIDATION (common): name, email and password must not be empty. If empty -> show SnackBar message and STOP (return).
     if (nameController.text.trim().isEmpty ||
         emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty) {
@@ -65,6 +97,7 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
+    // >> NOTE: Student-only validation: Student ID and Session are required.
     if (isStudent) {
       if (studentIdController.text.trim().isEmpty ||
           sessionController.text.trim().isEmpty) {
@@ -76,6 +109,7 @@ class _SignUpPageState extends State<SignUpPage> {
         return;
       }
       // Safety check: the email must match the auto-generated pattern.
+      // >> NOTE: SAFETY CHECK: email must exactly match the auto-generated pattern, so nobody can use a fake student email.
       final expectedEmail =
           'u${studentIdController.text.trim()}$_studentEmailDomain';
       if (emailController.text.trim() != expectedEmail) {
@@ -90,6 +124,7 @@ class _SignUpPageState extends State<SignUpPage> {
         return;
       }
     } else {
+      // >> NOTE: Doctor-only validation: Medical License Number is required.
       if (licenseNumberController.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -100,9 +135,13 @@ class _SignUpPageState extends State<SignUpPage> {
       }
     }
 
+    // >> NOTE: STEP 2 - START LOADING: button disabled + spinner appears.
     setState(() => isLoading = true);
 
     try {
+      // >> NOTE: STEP 3 - FIREBASE AUTHENTICATION
+      // >>       createUserWithEmailAndPassword() creates the login account (email + password only).
+      // >>       It returns a userCredential that contains the unique user id (uid).
       // 1. Create the auth account
       final userCredential =
           await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -110,12 +149,17 @@ class _SignUpPageState extends State<SignUpPage> {
         password: passwordController.text,
       );
 
+      // >> NOTE: uid = unique ID of the new user. We use it as the document ID in Firestore so Auth and Firestore are linked.
       final uid = userCredential.user!.uid;
 
+      // >> NOTE: STEP 4 - FIRESTORE: save the profile in collection 'users', document = uid.
+      // >>       role = student/doctor decides which dashboard opens at login.
+      // >>       status: student = 'approved' now | doctor = 'pending' until admin approves.
       // 2. Save the extra profile info to Firestore.
       // Students are approved immediately; doctors need admin approval
       // before they can log in (checked at login time via `status`).
       try {
+        // >> NOTE: set({...}) writes the document. The 'if (isStudent) key: value' lines add fields only for that role (collection-if).
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
           'name': nameController.text.trim(),
           'email': emailController.text.trim(),
@@ -125,17 +169,21 @@ class _SignUpPageState extends State<SignUpPage> {
           if (isStudent) 'session': sessionController.text.trim(),
           if (!isStudent)
             'licenseNumber': licenseNumberController.text.trim(),
+          // >> NOTE: serverTimestamp = time taken from Firebase server (more reliable than the phone clock).
           'createdAt': FieldValue.serverTimestamp(),
         });
       } catch (firestoreError) {
+        // >> NOTE: If saving fails, print it for debugging and rethrow (send the error to the outer catch).
         debugPrint('FIRESTORE WRITE FAILED: $firestoreError');
         rethrow;
       }
 
+      // >> NOTE: mounted check: if the user already left the screen, do nothing (avoids crash when using context after await).
       if (!mounted) return;
 
       if (isStudent) {
         ScaffoldMessenger.of(context).showSnackBar(
+          // >> NOTE: STEP 5a - STUDENT SUCCESS: show message, then go back to LandingPage with pushReplacement (this page is replaced, so Back won't return here).
           const SnackBar(content: Text('Student account created successfully!')),
         );
         Navigator.pushReplacement(
@@ -143,9 +191,12 @@ class _SignUpPageState extends State<SignUpPage> {
           MaterialPageRoute(builder: (_) => LandingPage()),
         );
       } else {
+        // >> NOTE: STEP 5b - DOCTOR: account is saved but 'pending'. Sign out immediately so the doctor cannot enter the app.
+        // >>       Show a message that admin approval is needed, then go to LandingPage.
         // Doctor accounts need approval — sign them out and send them back
         // to the landing/login screen with a clear message instead of
         // letting them straight into the app.
+        // >> NOTE: signOut(): Firebase automatically logs in a new user, so we log the doctor out until the admin approves.
         await FirebaseAuth.instance.signOut();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -161,9 +212,11 @@ class _SignUpPageState extends State<SignUpPage> {
           MaterialPageRoute(builder: (_) => LandingPage()),
         );
       }
+    // >> NOTE: STEP 6 - ERROR HANDLING: catches Firebase Auth errors and shows a friendly message by error code.
     } on FirebaseAuthException catch (e) {
       String message;
       switch (e.code) {
+        // >> NOTE: Common errors: email already used | weak password (less than 6 characters) | invalid email.
         case 'email-already-in-use':
           message = 'An account already exists for that email.';
           break;
@@ -179,17 +232,20 @@ class _SignUpPageState extends State<SignUpPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
+    // >> NOTE: Catches any other unexpected error.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Something went wrong: $e')),
       );
+    // >> NOTE: STEP 7 - finally ALWAYS runs (success or error): stop the loading spinner.
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
+  // >> NOTE: BUILD (UI): draws the screen. Structure: Scaffold -> AppBar + scrollable Column with Header, Toggle, Form card, Back button.
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
@@ -198,6 +254,7 @@ class _SignUpPageState extends State<SignUpPage> {
         backgroundColor: const Color(0xFF003D9B),
         foregroundColor: Colors.white,
         elevation: 0,
+        // >> NOTE: App bar title: 'Create Account'.
         title: const Text(
           'Create Account',
           style: TextStyle(
@@ -212,6 +269,7 @@ class _SignUpPageState extends State<SignUpPage> {
           child: Column(
             children: [
               // ==========================================================
+              // >> NOTE: UI SECTION 1 - HEADER: logo icon, title and short description (static widgets).
               // HEADER
               // ==========================================================
 
@@ -258,6 +316,8 @@ class _SignUpPageState extends State<SignUpPage> {
               const SizedBox(height: 25),
 
               // ==========================================================
+              // >> NOTE: UI SECTION 2 - TOGGLE: two custom buttons (_ToggleButton).
+              // >>       Tap Student -> isStudent = true | Tap Doctor -> isStudent = false and clear email. setState() redraws the form.
               // STUDENT / DOCTOR TOGGLE
               // ==========================================================
 
@@ -274,6 +334,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   children: [
                     Expanded(
                       child: _ToggleButton(
+                        // >> NOTE: Student toggle button. 'selected' decides the highlighted colour.
                         title: 'Student',
                         icon: Icons.school_outlined,
                         selected: isStudent,
@@ -290,6 +351,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                     Expanded(
                       child: _ToggleButton(
+                        // >> NOTE: Doctor toggle button. Email is cleared because the doctor types their own email.
                         title: 'Doctor',
                         icon: Icons.medical_services_outlined,
                         selected: !isStudent,
@@ -308,6 +370,8 @@ class _SignUpPageState extends State<SignUpPage> {
               const SizedBox(height: 20),
 
               // ==========================================================
+              // >> NOTE: UI SECTION 3 - FORM CARD: white rounded box containing all input fields.
+              // >>       The form CHANGES depending on isStudent (ternary ? : and if-conditions).
               // FORM CARD
               // ==========================================================
 
@@ -333,6 +397,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   children: [
                     Text(
                       isStudent
+                          // >> NOTE: Heading changes with isStudent: Student Registration / Doctor Registration.
                           ? 'Student Registration'
                           : 'Doctor Registration',
                       style: const TextStyle(
@@ -357,6 +422,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                     const SizedBox(height: 22),
 
+                    // >> NOTE: Full Name field (common for both). Uses our reusable widget _InputField.
                     // NAME
                     _InputField(
                       controller: nameController,
@@ -369,6 +435,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                     const SizedBox(height: 15),
 
+                    // >> NOTE: Student ID field - shown ONLY for students (if (isStudent) ...[ ]). Keyboard type = number.
                     // STUDENT ID must come before email since email is
                     // derived from it.
                     if (isStudent) ...[
@@ -382,6 +449,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       const SizedBox(height: 15),
                     ],
 
+                    // >> NOTE: EMAIL field: students -> readOnly + grey + auto-filled (cannot edit). Doctors -> editable.
                     // EMAIL
                     Text(
                       'Email Address',
@@ -394,6 +462,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     const SizedBox(height: 7),
                     TextField(
                       controller: emailController,
+                      // >> NOTE: readOnly = true for students so they cannot change the generated email.
                       readOnly: isStudent,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
@@ -438,6 +507,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                     const SizedBox(height: 15),
 
+                    // >> NOTE: PASSWORD field with show/hide eye icon.
                     // PASSWORD
                     const Text(
                       'Password',
@@ -452,6 +522,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                     TextField(
                       controller: passwordController,
+                      // >> NOTE: obscureText hides the characters as dots.
                       obscureText: obscurePassword,
                       decoration: InputDecoration(
                         hintText: 'Create a password',
@@ -459,6 +530,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           Icons.lock_outline,
                           size: 20,
                         ),
+                        // >> NOTE: Eye icon button: flips obscurePassword with setState -> password becomes visible/hidden.
                         suffixIcon: IconButton(
                           onPressed: () {
                             setState(() {
@@ -496,6 +568,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
 
                     // =====================================================
+                    // >> NOTE: Extra field for students: Session (e.g. 2021-22).
                     // STUDENT ONLY FIELDS
                     // =====================================================
 
@@ -511,6 +584,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     ],
 
                     // =====================================================
+                    // >> NOTE: Extra field for doctors: Medical License Number. Admin uses it to verify the doctor.
                     // DOCTOR ONLY FIELDS
                     // =====================================================
 
@@ -527,6 +601,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                     const SizedBox(height: 22),
 
+                    // >> NOTE: Blue info box. Its text changes: student info or 'admin approval required' for doctors.
                     // INFORMATION BOX
                     Container(
                       width: double.infinity,
@@ -564,10 +639,13 @@ class _SignUpPageState extends State<SignUpPage> {
 
                     const SizedBox(height: 22),
 
+                    // >> NOTE: SUBMIT BUTTON: onPressed = null while loading (disabled), otherwise calls handleSignUp (the backend function above).
+                    // >>       Child shows spinner when loading, otherwise text that depends on isStudent.
                     // CREATE ACCOUNT BUTTON
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
+                        // >> NOTE: UI -> BACKEND CONNECTION: this line connects the button to handleSignUp().
                         onPressed: isLoading ? null : handleSignUp,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF003D9B),
@@ -606,6 +684,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
               const SizedBox(height: 20),
 
+              // >> NOTE: Back button: Navigator.pop() closes this screen and returns to the previous (landing) page.
               // BACK BUTTON
               TextButton.icon(
                 onPressed: () {
@@ -636,10 +715,12 @@ class _SignUpPageState extends State<SignUpPage> {
 // TOGGLE BUTTON
 // =======================================================================
 
+// >> NOTE: REUSABLE WIDGET #1: Student/Doctor toggle button. StatelessWidget (no own state - parent controls 'selected').
 class _ToggleButton extends StatelessWidget {
   final String title;
   final IconData icon;
   final bool selected;
+  // >> NOTE: Values are passed in through the constructor: title, icon, selected, onTap (function to run when tapped).
   final VoidCallback onTap;
 
   const _ToggleButton({
@@ -651,8 +732,10 @@ class _ToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // >> NOTE: GestureDetector detects the tap and calls onTap.
     return GestureDetector(
       onTap: onTap,
+      // >> NOTE: AnimatedContainer smoothly changes colour in 200 ms: blue when selected, transparent when not.
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 13),
@@ -696,6 +779,8 @@ class _ToggleButton extends StatelessWidget {
 // INPUT FIELD
 // =======================================================================
 
+// >> NOTE: REUSABLE WIDGET #2: labelled text field (label + TextField with icon and rounded border).
+// >>       Written once, used for Name, Student ID, Session and License Number -> less repeated code.
 class _InputField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -708,6 +793,7 @@ class _InputField extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.icon,
+    // >> NOTE: Optional parameter with a default value (normal text keyboard). Student ID passes TextInputType.number.
     this.keyboardType = TextInputType.text,
   });
 
