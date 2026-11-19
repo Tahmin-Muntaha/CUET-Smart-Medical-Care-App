@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart'; // Flutter UI widgets
+import 'package:firebase_auth/firebase_auth.dart'; // Login / logout
+import 'package:cloud_firestore/cloud_firestore.dart'; // Database
+import 'package:fl_chart/fl_chart.dart'; // Chart library (line, bar, pie)
 
 import 'login_page.dart'; // adjust if your LoginPage lives in a different file
+// NOTE: LoginPage is needed so we can go back to login after logout.
 
+// NOTE: StatefulWidget because the dashboard has changing data/state.
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
 
@@ -15,14 +17,15 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   // ============================================================
   // FIRESTORE REFERENCES
+  // NOTE: Shortcuts to the database collections (like tables).
   // ============================================================
 
   final CollectionReference usersRef =
-      FirebaseFirestore.instance.collection('users');
+      FirebaseFirestore.instance.collection('users'); // students + doctors
   final CollectionReference activitiesRef =
-      FirebaseFirestore.instance.collection('activities');
+      FirebaseFirestore.instance.collection('activities'); // activity log
   final CollectionReference alertsRef =
-      FirebaseFirestore.instance.collection('alerts');
+      FirebaseFirestore.instance.collection('alerts'); // system alerts
   final CollectionReference appointmentsRef =
       FirebaseFirestore.instance.collection('appointments');
   final CollectionReference announcementsRef =
@@ -32,23 +35,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // STREAMS
+  // NOTE: A Stream = live data. When the database changes, the screen
+  // updates automatically (no refresh needed).
   // ============================================================
 
+  // Only users with role = student
   Stream<QuerySnapshot> get studentsStream =>
       usersRef.where('role', isEqualTo: 'student').snapshots();
 
+  // Only users with role = doctor
   Stream<QuerySnapshot> get doctorsStream =>
       usersRef.where('role', isEqualTo: 'doctor').snapshots();
 
+  // Latest 10 activities (newest first)
   Stream<QuerySnapshot> get activitiesStream => activitiesRef
       .orderBy('timestamp', descending: true)
       .limit(10)
       .snapshots();
 
+  // All alerts, newest first
   Stream<QuerySnapshot> get alertsStream =>
       alertsRef.orderBy('timestamp', descending: true).snapshots();
 
   // All appointments (newest first) – used by the new All Appointments dialog
+  // NOTE: limit(150) so we never load too much data.
   Stream<QuerySnapshot> get allAppointmentsStream => appointmentsRef
       .orderBy('date', descending: true)
       .limit(150)
@@ -66,10 +76,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       chatsRef.orderBy('lastMessageAt', descending: true).snapshots();
 
   /// Appointments for the last 7 days (used by the System Stats trend chart).
+  // NOTE: whereIn = match any date in the given list of 7 date strings.
   Stream<QuerySnapshot> get last7DaysAppointmentsStream => appointmentsRef
       .where('date', whereIn: _last7Days.map((d) => d.dateString).toList())
       .snapshots();
 
+  // NOTE: Returns today's date as "yyyy-MM-dd" (same format stored in DB).
   String _todayString() {
     final now = DateTime.now();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-'
@@ -89,17 +101,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       'Sat',
       'Sun',
     ];
+    // NOTE: i = 0 -> 6 days ago ... i = 6 -> today
     return List.generate(7, (i) {
       final d = now.subtract(Duration(days: 6 - i));
       final dateString = '${d.year}-${d.month.toString().padLeft(2, '0')}-'
           '${d.day.toString().padLeft(2, '0')}';
       return (
         dateString: dateString,
-        label: weekdayLabels[d.weekday - 1],
+        label: weekdayLabels[d.weekday - 1], // weekday: 1 = Mon ... 7 = Sun
       );
     });
   }
 
+  // NOTE: Converts a timestamp to text like "5 minutes ago".
   String _timeAgo(Timestamp? timestamp) {
     if (timestamp == null) return '';
     final diff = DateTime.now().difference(timestamp.toDate());
@@ -109,10 +123,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return '${diff.inDays} days ago';
   }
 
+  // NOTE: Converts a timestamp to "dd/MM/yyyy  h:mm AM/PM".
   String _formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return '';
     final d = timestamp.toDate();
-    final hour = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final hour = d.hour % 12 == 0 ? 12 : d.hour % 12; // 24h -> 12h
     final ampm = d.hour >= 12 ? 'PM' : 'AM';
     return '${d.day.toString().padLeft(2, '0')}/'
         '${d.month.toString().padLeft(2, '0')}/${d.year}  '
@@ -121,10 +136,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // TOAST
+  // NOTE: Small blue message bar at the bottom ("SnackBar").
+  // Used to tell the admin success / error messages.
   // ============================================================
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar(); // remove old one
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -143,26 +160,33 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   /// If [docId] is provided we're editing an existing announcement,
   /// pre-filled from [existing]. Otherwise this creates a brand new one.
+  // NOTE: One form is used for both "create" and "edit" to avoid
+  // writing the same code twice.
   void showBroadcastFormDialog({String? docId, Map<String, dynamic>? existing}) {
-    final bool isEditing = docId != null;
+    final bool isEditing = docId != null; // docId present = edit mode
 
+    // Text boxes, pre-filled with old values when editing
     final titleController =
         TextEditingController(text: existing?['title'] as String? ?? '');
     final contentController =
         TextEditingController(text: existing?['content'] as String? ?? '');
 
+    // Dropdown values (default: All / Normal)
     String audience = (existing?['audience'] as String?) ?? 'All';
     String priority = (existing?['priority'] as String?) ?? 'Normal';
 
     showDialog(
       context: context,
       builder: (context) {
+        // NOTE: StatefulBuilder lets the dialog update itself
+        // (dropdown change) without rebuilding the whole page.
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
+              // Dialog title: icon + text (changes for edit/create)
               title: Row(
                 children: [
                   Container(
@@ -190,6 +214,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   ),
                 ],
               ),
+              // Form fields: title, content, audience, priority
               content: SingleChildScrollView(
                 child: Column(
                   children: [
@@ -216,6 +241,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 14),
+                    // Who will see this announcement
                     DropdownButtonFormField<String>(
                       value: audience,
                       decoration: InputDecoration(
@@ -245,6 +271,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       },
                     ),
                     const SizedBox(height: 14),
+                    // Normal or Urgent
                     DropdownButtonFormField<String>(
                       value: priority,
                       decoration: InputDecoration(
@@ -277,18 +304,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
+                // Save / Broadcast button
                 ElevatedButton.icon(
                   onPressed: () async {
+                    // Validation: title and content are required
                     if (titleController.text.trim().isEmpty ||
                         contentController.text.trim().isEmpty) {
                       showMessage('Please fill in all announcement fields.');
                       return;
                     }
 
+                    // Save navigator first (safe to use after "await")
                     final navigator = Navigator.of(context);
 
                     try {
                       if (isEditing) {
+                        // ---- EDIT: update the existing document ----
                         await announcementsRef.doc(docId).update({
                           'title': titleController.text.trim(),
                           'content': contentController.text.trim(),
@@ -297,15 +328,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           'updatedAt': FieldValue.serverTimestamp(),
                         });
 
+                        // Add a line in the activity feed
                         await activitiesRef.add({
                           'title': 'Announcement updated: '
                               '${titleController.text.trim()}',
                           'timestamp': FieldValue.serverTimestamp(),
                         });
 
-                        navigator.pop();
+                        navigator.pop(); // close dialog
                         showMessage('Announcement updated successfully!');
                       } else {
+                        // ---- CREATE: add a new document ----
                         await announcementsRef.add({
                           'title': titleController.text.trim(),
                           'content': contentController.text.trim(),
@@ -348,6 +381,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // BROADCAST MANAGEMENT MODAL (list + edit + delete)
+  // NOTE: Shows all announcements. Admin can add new, edit or delete.
   // ============================================================
 
   void showBroadcastManagementDialog() {
@@ -375,6 +409,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
+              // "New" button -> close this dialog, open the create form
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
@@ -397,6 +432,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           content: SizedBox(
             width: 680,
             height: 480,
+            // NOTE: StreamBuilder = rebuilds whenever announcements change.
             child: StreamBuilder<QuerySnapshot>(
               stream: announcementsStream,
               builder: (context, snapshot) {
@@ -426,6 +462,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     final a = doc.data() as Map<String, dynamic>;
                     final bool urgent = a['priority'] == 'Urgent';
 
+                    // One announcement card (red border if urgent)
                     return Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -455,6 +492,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                         ),
                                       ),
                                     ),
+                                    // "Urgent" badge
                                     if (urgent)
                                       Container(
                                         padding: const EdgeInsets.symmetric(
@@ -488,6 +526,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                   ),
                                 ),
                                 const SizedBox(height: 5),
+                                // Small tags: audience + date
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 4,
@@ -504,6 +543,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             ),
                           ),
                           const SizedBox(width: 6),
+                          // Edit + Delete buttons
                           Column(
                             children: [
                               IconButton(
@@ -515,6 +555,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 ),
                                 onPressed: () {
                                   Navigator.pop(context);
+                                  // Open the same form in edit mode
                                   showBroadcastFormDialog(
                                     docId: doc.id,
                                     existing: a,
@@ -558,6 +599,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Small rounded tag (used for "Audience: All", date, etc.).
   Widget _pill(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -576,6 +618,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Asks "Are you sure?" before deleting an announcement.
   void _confirmDeleteAnnouncement(String docId, String title) {
     showDialog(
       context: context,
@@ -599,8 +642,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               onPressed: () async {
                 final navigator = Navigator.of(dialogContext);
                 try {
-                  await announcementsRef.doc(docId).delete();
+                  await announcementsRef.doc(docId).delete(); // delete from DB
 
+                  // Log the deletion in activity feed
                   await activitiesRef.add({
                     'title': 'Announcement deleted: $title',
                     'timestamp': FieldValue.serverTimestamp(),
@@ -627,6 +671,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // STUDENTS MODAL
+  // NOTE: Popup list of all registered students (live from database).
   // ============================================================
 
   void showStudentsDialog() {
@@ -679,6 +724,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   itemBuilder: (context, index) {
                     final student =
                         docs[index].data() as Map<String, dynamic>;
+                    // Safe reading: use default text if field is missing
                     final name = (student['name'] as String?) ?? 'Unknown';
                     final bloodGroup =
                         (student['bloodGroup'] as String?) ?? 'Not set';
@@ -695,6 +741,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                       child: Row(
                         children: [
+                          // Avatar with first letter of the name
                           CircleAvatar(
                             radius: 23,
                             backgroundColor: const Color(0xFFE7EEFF),
@@ -707,6 +754,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             ),
                           ),
                           const SizedBox(width: 12),
+                          // Name, ID, session, email, hall
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -738,6 +786,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               ],
                             ),
                           ),
+                          // Blood group tag
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
@@ -781,6 +830,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // DOCTORS MODAL
+  // NOTE: Popup list of doctors. Admin can Approve / Reject
+  // doctors who are "pending".
   // ============================================================
 
   void showDoctorsDialog() {
@@ -818,6 +869,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 }
 
                 // Exclude rejected doctors, pending first.
+                // NOTE: .where() removes rejected; .sort() puts "pending"
+                // doctors at the top so admin sees them first.
                 final docs = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['status'] != 'rejected';
@@ -855,6 +908,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       decoration: BoxDecoration(
                         color: const Color(0xFFF9F9FF),
                         borderRadius: BorderRadius.circular(14),
+                        // Yellow border for pending doctors
                         border: Border.all(
                           color: isPending
                               ? Colors.amber.shade300
@@ -908,6 +962,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          // Pending -> show Approve / Reject buttons
                           if (isPending)
                             Column(
                               mainAxisSize: MainAxisSize.min,
@@ -963,6 +1018,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               ],
                             )
                           else
+                            // Not pending -> just show status tag
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
@@ -1008,6 +1064,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Changes a doctor's status to approved/rejected in the database.
+  // An approved doctor can log in. Also writes a line in the activity feed.
   Future<void> _updateDoctorStatus(
     String docId,
     String newStatus,
@@ -1036,8 +1094,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // DEPARTMENT MANAGEMENT MODAL
+  // NOTE: Static (fixed) list of CUET faculties and departments.
+  // Not from the database, only reference information.
   // ============================================================
 
+  // MapEntry = (faculty name, list of its departments)
   static const List<MapEntry<String, String>> _cuetFacultyList = [
     MapEntry(
       'Faculty of Civil Engineering',
@@ -1094,6 +1155,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Blue info box at the top
                   Container(
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 14),
@@ -1114,6 +1176,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                   ),
+                  // One card per faculty (entry.key = name, entry.value = depts)
                   ..._cuetFacultyList.map((entry) {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 10),
@@ -1180,6 +1243,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // SCHEDULE MANAGEMENT MODAL
+  // NOTE: Fixed weekly timetable of the medical center (static data).
   // ============================================================
 
   static const List<Map<String, String>> _weeklySchedule = [
@@ -1254,6 +1318,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Info box about 24/7 ambulance
                   Container(
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 14),
@@ -1280,6 +1345,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ],
                     ),
                   ),
+                  // One row per day. Friday gets a special yellow color.
                   ..._weeklySchedule.map((row) {
                     final bool isFriday = row['day'] == 'Friday';
                     return Container(
@@ -1298,6 +1364,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                       child: Row(
                         children: [
+                          // Day name
                           SizedBox(
                             width: 90,
                             child: Text(
@@ -1309,6 +1376,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               ),
                             ),
                           ),
+                          // Service + duty doctor
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1332,6 +1400,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               ],
                             ),
                           ),
+                          // Opening hours tag
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 9,
@@ -1379,10 +1448,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // ALL APPOINTMENTS DIALOG (new – full details + sort today’s)
+  // NOTE: Shows all appointments with two buttons:
+  // "Sort Today's Appointments" (only today) and "Show All".
   // ============================================================
 
   void showAllAppointmentsDialog() {
-    bool showOnlyToday = false;
+    bool showOnlyToday = false; // false = show all, true = only today
 
     showDialog(
       context: context,
@@ -1420,6 +1491,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 child: Column(
                   children: [
                     // Sort / Filter controls
+                    // NOTE: Active button = blue, inactive = grey.
                     Row(
                       children: [
                         Expanded(
@@ -1495,6 +1567,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           }
 
                           // Sort: pending → inConsultation → completed, then by time/queue
+                          // NOTE: statusOrder gives each status a number.
+                          // Smaller number = shown first.
                           docs.sort((a, b) {
                             final da = a.data() as Map<String, dynamic>;
                             final db = b.data() as Map<String, dynamic>;
@@ -1569,11 +1643,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   /// Beautiful detailed card for a single appointment
+  // NOTE: Shows student, date, time, doctor, department, reason.
+  // If the appointment is "completed", it also shows diagnosis,
+  // advice, prescription and vitals.
   Widget _appointmentCard(Map<String, dynamic> data) {
     final String status = (data['status'] as String?) ?? 'booked';
     final bool isCompleted = status == 'completed';
     final bool isInConsult = status == 'inConsultation';
 
+    // Choose color and label based on status
     Color statusColor;
     String statusLabel;
     if (isCompleted) {
@@ -1588,12 +1666,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
 
     // Helper to safely get string
+    // NOTE: Returns the value if non-empty, otherwise "—".
     String s(String key, [String fallback = '—']) =>
         (data[key] as String?)?.trim().isNotEmpty == true
             ? data[key] as String
             : fallback;
 
     // Prescriptions may be String or List
+    // NOTE: Data may be saved either way, so we handle both.
     String prescriptionText = '';
     final presc = data['prescriptions'];
     if (presc is String && presc.trim().isNotEmpty) {
@@ -1607,6 +1687,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       decoration: BoxDecoration(
         color: const Color(0xFFF9F9FF),
         borderRadius: BorderRadius.circular(16),
+        // Border color depends on status
         border: Border.all(
           color: isCompleted
               ? Colors.green.shade200
@@ -1619,6 +1700,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header row
+          // NOTE: Student name + status badge.
           Row(
             children: [
               Expanded(
@@ -1662,6 +1744,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           _infoRow(Icons.notes, 'Reason', s('reason', s('symptoms', '—'))),
 
           // Completed-only section
+          // NOTE: "if (...) ...[ ]" = show this part only when completed.
           if (isCompleted) ...[
             const Divider(height: 20),
             const Text(
@@ -1737,6 +1820,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: One info line: icon + label + value (e.g. "Doctor: Dr. Rahman").
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -1769,6 +1853,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Small blue tag for a vital sign, e.g. "BP: 120/80".
   Widget _vitalChip(String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1789,6 +1874,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // STATISTICS MODAL
+  // NOTE: Popup with 3 charts: appointments trend (line),
+  // students vs doctors (bar), alerts (pie).
   // ============================================================
 
   void showStatsDialog() {
@@ -1818,11 +1905,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Big line chart on top
                   _chartCard(
                     title: 'Appointments — Last 7 Days',
                     child: _appointmentsTrendChart(),
                   ),
                   const SizedBox(height: 16),
+                  // Two smaller charts side by side
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1860,6 +1949,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Reusable card wrapper (title + chart) used by all 3 charts.
   Widget _chartCard({required String title, required Widget child}) {
     return Container(
       width: double.infinity,
@@ -1887,6 +1977,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // ---- LINE CHART: appointments per day for the last 7 days ----
   Widget _appointmentsTrendChart() {
     final days = _last7Days;
 
@@ -1899,6 +1990,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          // Start every day with count 0, then add 1 for each appointment
           final counts = {for (final d in days) d.dateString: 0};
           for (final doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
@@ -1908,11 +2000,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             }
           }
 
+          // Chart points: x = day index (0-6), y = number of appointments
           final spots = <FlSpot>[
             for (int i = 0; i < days.length; i++)
               FlSpot(i.toDouble(), counts[days[i].dateString]!.toDouble()),
           ];
 
+          // Top of the chart = highest count + 2 (minimum 5)
           final maxY = counts.values.isEmpty
               ? 5.0
               : (counts.values.reduce((a, b) => a > b ? a : b) + 2)
@@ -1922,6 +2016,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             LineChartData(
               minY: 0,
               maxY: maxY < 5 ? 5 : maxY,
+              // Light horizontal grid lines
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
@@ -1931,6 +2026,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   strokeWidth: 1,
                 ),
               ),
+              // Axis labels: hide top/right, show left numbers + bottom days
               titlesData: FlTitlesData(
                 topTitles:
                     const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -1977,6 +2073,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
               ),
               borderData: FlBorderData(show: false),
+              // The actual curved line with dots and a light fill below
               lineBarsData: [
                 LineChartBarData(
                   spots: spots,
@@ -2006,6 +2103,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // ---- BAR CHART: number of students vs approved doctors ----
+  // NOTE: Two StreamBuilders are nested because we need data from
+  // both students and doctors.
   Widget _peopleBarChart() {
     return SizedBox(
       height: 190,
@@ -2020,6 +2120,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               }
 
               final studentCount = studentSnap.data!.docs.length;
+              // Count only APPROVED doctors
               final doctorCount = doctorSnap.data!.docs.where((d) {
                 final data = d.data() as Map<String, dynamic>;
                 return data['status'] == 'approved';
@@ -2064,6 +2165,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         },
                       ),
                     ),
+                    // Bottom labels: 0 = Students, 1 = Doctors
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -2086,6 +2188,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                   ),
+                  // Two bars: students (blue), doctors (teal)
                   barGroups: [
                     BarChartGroupData(
                       x: 0,
@@ -2119,6 +2222,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // ---- PIE CHART: active vs resolved alerts ----
   Widget _alertsPieChart() {
     return SizedBox(
       height: 190,
@@ -2130,6 +2234,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           }
 
           final docs = snapshot.data!.docs;
+          // Active = resolved is false; the rest are resolved
           final active = docs.where((d) {
             final data = d.data() as Map<String, dynamic>;
             return data['resolved'] == false;
@@ -2153,6 +2258,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     sectionsSpace: 3,
                     centerSpaceRadius: 32,
                     sections: [
+                      // Red slice = active alerts
                       PieChartSectionData(
                         value: active.toDouble(),
                         color: Colors.red.shade400,
@@ -2164,6 +2270,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           color: Colors.white,
                         ),
                       ),
+                      // Green slice = resolved alerts
                       PieChartSectionData(
                         value: resolved.toDouble(),
                         color: Colors.green.shade400,
@@ -2180,6 +2287,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
               ),
               const SizedBox(width: 10),
+              // Legend (color meaning)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -2196,6 +2304,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Colored dot + label for the pie chart legend.
   Widget _legendDot(String label, Color color) {
     return Row(
       children: [
@@ -2215,20 +2324,25 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // LOGOUT
+  // NOTE: Sign out from Firebase, then go to LoginPage and remove all
+  // previous pages (so back button cannot return to the dashboard).
   // ============================================================
 
   Future<void> logout() async {
     await FirebaseAuth.instance.signOut();
-    if (!mounted) return;
+    if (!mounted) return; // page may be closed already
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const LoginPage()),
-      (route) => false,
+      (route) => false, // false = remove every old page
     );
   }
 
   // ============================================================
   // BUILD
+  // NOTE: Main dashboard screen layout:
+  // AppBar -> Title row + Broadcast button -> Overview cards
+  // -> All chats section -> (Management tools | Activity feed)
   // ============================================================
 
   @override
@@ -2252,6 +2366,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
+            // Profile menu (top right): shows "Administrator" and "Logout"
             child: PopupMenuButton<String>(
               icon: const CircleAvatar(
                 radius: 18,
@@ -2294,11 +2409,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
           child: Center(
+            // Limit width on large screens
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ---- Page title + "Broadcast" button ----
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -2365,10 +2482,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  _overviewCardsSection(),
+                  _overviewCardsSection(), // 5 summary cards
                   const SizedBox(height: 25),
-                  _allChatsDashboardSection(),
+                  _allChatsDashboardSection(), // latest 5 chats
                   const SizedBox(height: 25),
+                  // Responsive layout:
+                  // narrow screen -> tools above, activity below
+                  // wide screen -> side by side
                   LayoutBuilder(
                     builder: (context, constraints) {
                       if (constraints.maxWidth < 800) {
@@ -2401,6 +2521,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // OVERVIEW CARDS SECTION
+  // NOTE: 5 summary cards at the top (Students, Doctors, Chats,
+  // Appointments, Alerts). Each shows a live count and opens a popup
+  // when tapped. Number of columns changes with screen width.
   // ============================================================
 
   Widget _overviewCardsSection() {
@@ -2421,6 +2544,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           mainAxisSpacing: 12,
           childAspectRatio: 2.2,
           children: [
+            // ---- Card 1: Registered Students ----
             StreamBuilder<QuerySnapshot>(
               stream: studentsStream,
               builder: (context, snapshot) {
@@ -2435,6 +2559,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 );
               },
             ),
+            // ---- Card 2: Approved Doctors (+ pending count) ----
             StreamBuilder<QuerySnapshot>(
               stream: doctorsStream,
               builder: (context, snapshot) {
@@ -2455,6 +2580,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       : 'All Approved',
                   icon: Icons.medical_services,
                   color: const Color(0xFF00687A),
+                  // Yellow background when someone is waiting for approval
                   background: pendingCount > 0
                       ? Colors.amber.shade50
                       : Colors.white,
@@ -2462,6 +2588,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 );
               },
             ),
+            // ---- Card 3: All Chats ----
             StreamBuilder<QuerySnapshot>(
               stream: allChatsStream,
               builder: (context, snapshot) {
@@ -2480,6 +2607,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               },
             ),
             // UPDATED: All Appointments card
+            // ---- Card 4: All Appointments ----
             StreamBuilder<QuerySnapshot>(
               stream: allAppointmentsStream,
               builder: (context, snapshot) {
@@ -2494,6 +2622,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 );
               },
             ),
+            // ---- Card 5: System Alerts (unresolved count) ----
             StreamBuilder<QuerySnapshot>(
               stream: alertsStream,
               builder: (context, snapshot) {
@@ -2508,9 +2637,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   subtitle: pending > 0 ? 'Requires Review' : 'All Clear',
                   icon: Icons.warning_amber,
                   color: Colors.red.shade700,
+                  // Light red background when alerts need attention
                   background:
                       pending > 0 ? const Color(0xFFFFF1F1) : Colors.white,
-                  onTap: () {},
+                  onTap: () {}, // no popup for this card
                 );
               },
             ),
@@ -2520,6 +2650,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Reusable card design: title + icon on top, big number
+  // and small subtitle at the bottom. Tapping calls onTap.
   Widget _overviewCard({
     required String title,
     required String value,
@@ -2565,7 +2697,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 Icon(icon, color: color, size: 21),
               ],
             ),
-            const Spacer(),
+            const Spacer(), // pushes the number to the bottom
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -2599,8 +2731,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // ALL CHATS - ADMIN SECURITY MONITORING
+  // NOTE: Admin can READ all conversations (read-only) for
+  // security monitoring.
   // ============================================================
 
+  // Popup with the list of all conversations (newest first)
   void showAllChatsDialog() {
     showDialog(
       context: context,
@@ -2612,9 +2747,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           child: SizedBox(
             width: 850,
-            height: MediaQuery.of(context).size.height * 0.82,
+            height: MediaQuery.of(context).size.height * 0.82, // 82% height
             child: Column(
               children: [
+                // Blue header bar
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 18, 12, 18),
                   decoration: const BoxDecoration(
@@ -2664,6 +2800,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ],
                   ),
                 ),
+                // Chat list (live)
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
                     stream: allChatsStream,
@@ -2706,7 +2843,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           return _adminChatCard(
                             chatId: docs[index].id,
                             data: data,
-                            isCurrent: index == 0,
+                            isCurrent: index == 0, // first = latest chat
                           );
                         },
                       );
@@ -2721,11 +2858,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: One chat card: shows "Name1 ↔ Name2", their roles, last message
+  // and time. Tapping opens the full message history.
   Widget _adminChatCard({
     required String chatId,
     required Map<String, dynamic> data,
     required bool isCurrent,
   }) {
+    // Read participant info saved in the chat document
     final participants = List<String>.from(data['participants'] ?? const []);
     final names = Map<String, dynamic>.from(
       data['participantNames'] ?? const {},
@@ -2740,6 +2880,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     String getRole(String uid) =>
         (roles[uid] ?? '').toString();
 
+    // A chat has two people (uid1 and uid2)
     final uid1 = participants.isNotEmpty ? participants[0] : '';
     final uid2 = participants.length > 1 ? participants[1] : '';
     final name1 = uid1.isEmpty ? 'Unknown User' : getName(uid1);
@@ -2753,6 +2894,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ? data['lastMessageAt'] as Timestamp
         : null;
 
+    // Preview text: "SenderName: message"
     final preview = lastMessage.isEmpty
         ? 'No messages yet'
         : lastSenderId.isEmpty
@@ -2770,6 +2912,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         decoration: BoxDecoration(
           color: isCurrent ? const Color(0xFFF0F5FF) : Colors.white,
           borderRadius: BorderRadius.circular(18),
+          // Latest chat gets a thicker blue border
           border: Border.all(
             color: isCurrent
                 ? const Color(0xFF003D9B)
@@ -2786,6 +2929,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         child: Row(
           children: [
+            // Icon: doctor icon if a doctor is in the chat, else forum icon
             CircleAvatar(
               radius: 25,
               backgroundColor: const Color(0xFFE7EEFF),
@@ -2815,6 +2959,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           ),
                         ),
                       ),
+                      // "CURRENT" badge for the latest chat
                       if (isCurrent)
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -2884,6 +3029,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Popup that shows every message of ONE chat (READ ONLY).
+  // Messages are stored in chats/{chatId}/messages (sub-collection),
+  // ordered oldest -> newest.
   void showAdminChatMessagesDialog({
     required String chatId,
     required String title,
@@ -2901,6 +3049,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             height: MediaQuery.of(context).size.height * 0.78,
             child: Column(
               children: [
+                // Blue header with chat title and "READ ONLY" label
                 Container(
                   padding: const EdgeInsets.fromLTRB(18, 16, 10, 16),
                   decoration: const BoxDecoration(
@@ -2992,6 +3141,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               ? message['sentAt'] as Timestamp
                               : null;
 
+                          // One message bubble: sender, time, text
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(12),
@@ -3057,6 +3207,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Dashboard section showing only the latest 5 conversations
+  // with a "View All" button that opens the full popup.
   Widget _allChatsDashboardSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3121,7 +3273,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               return _chatStatusContainer('No conversations have been started yet.');
             }
 
-            final visibleDocs = docs.take(5).toList();
+            final visibleDocs = docs.take(5).toList(); // only first 5
 
             return Column(
               children: visibleDocs.asMap().entries.map((entry) {
@@ -3261,6 +3413,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: Small box showing a status text (loading / error / empty)
+  // for the chats section.
   Widget _chatStatusContainer(String message, [bool showProgress = false]) {
     return Container(
       width: double.infinity,
@@ -3303,6 +3457,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // MANAGEMENT TOOLS
+  // NOTE: 6 big buttons (grid) that open the popups, plus the
+  // active alerts section below them.
   // ============================================================
 
   Widget _managementTools() {
@@ -3346,6 +3502,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  // NOTE: One tool button: colored icon box + title. Calls onTap when pressed.
   Widget _toolButton(
     String title,
     IconData icon,
@@ -3391,6 +3548,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // ALERTS SECTION
+  // NOTE: Shows unresolved alerts in red with a "Resolve" button.
+  // If there are none, shows a green "all resolved" message.
   // ============================================================
 
   Widget _alertsSection() {
@@ -3404,11 +3563,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           );
         }
 
+        // Keep only alerts where resolved == false
         final activeAlerts = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           return data['resolved'] == false;
         }).toList();
 
+        // No active alerts -> green message
         if (activeAlerts.isEmpty) {
           return Container(
             width: double.infinity,
@@ -3434,6 +3595,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           );
         }
 
+        // Some active alerts -> red box with list
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(17),
@@ -3462,6 +3624,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ],
               ),
               const SizedBox(height: 12),
+              // One row per active alert
               ...activeAlerts.map((doc) {
                 final alert = doc.data() as Map<String, dynamic>;
                 return Container(
@@ -3505,6 +3668,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           ],
                         ),
                       ),
+                      // Resolve button -> sets resolved = true in the database
                       TextButton(
                         onPressed: () async {
                           try {
@@ -3537,6 +3701,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   // ============================================================
   // ACTIVITY FEED
+  // NOTE: Shows the latest 10 system activities (e.g. "Doctor approved",
+  // "Announcement published") with how long ago each happened.
   // ============================================================
 
   Widget _activityFeed() {
