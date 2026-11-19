@@ -1,25 +1,47 @@
+// ============================================================
+// SIDE NOTES ADDED FOR VIVA / DEMO.
+// Lines starting with  // >>  are explanation comments only.
+// The original code is unchanged.
+//
+// QUICK FLOW OF THIS FILE:
+//  App opens -> LandingPage.build() draws 7 sections top to bottom
+//  -> user taps Sign Up / Login -> Navigator.push opens that screen.
+//  No backend / Firebase code in this file (StatelessWidget).
+// ============================================================
+
+// >> NOTE: IMPORTS: material = all UI widgets | signup_page and login_page = the two screens the buttons open.
 import 'package:flutter/material.dart';
 import 'signup_page.dart';
 import 'login_page.dart';
 
+// >> NOTE: SCREEN: Landing (first) page of the app.
+// >>       StatelessWidget = screen never changes, so NO setState and NO backend here. It only shows info and navigates.
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
 
   @override
+  // >> NOTE: build(): Flutter calls this to draw the screen.
+  // >>       Structure: Scaffold -> SafeArea -> SingleChildScrollView -> Column of 7 sections (header, hero, intro, services, why us, emergency, footer).
   Widget build(BuildContext context) {
+    // >> NOTE: Scaffold = basic page frame (background, body).
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
 
+      // >> NOTE: SafeArea keeps content away from the phone notch / status bar.
       body: SafeArea(
+        // >> NOTE: Makes the whole page scrollable so it fits small phones.
         child: SingleChildScrollView(
+          // >> NOTE: Column puts the 7 sections one below another (top to bottom).
           child: Column(
             children: [
               // =========================================================
+              // >> NOTE: SECTION 1 - TOP HEADER: blue bar with logo, app name, tagline and an info button.
               // TOP HEADER
               // =========================================================
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
                 color: const Color(0xFF003D9B),
+                // >> NOTE: Row places logo, title and info button side by side.
                 child: Row(
                   children: [
                     Container(
@@ -38,6 +60,7 @@ class LandingPage extends StatelessWidget {
 
                     const SizedBox(width: 12),
 
+                    // >> NOTE: Expanded: title block takes all remaining width.
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +86,9 @@ class LandingPage extends StatelessWidget {
                     ),
 
                     IconButton(
+                      // >> NOTE: INFO BUTTON: tapping it opens the built-in About dialog (app name + version 1.0.0).
                       onPressed: () {
+                        // >> NOTE: showAboutDialog = ready-made Flutter popup with app details.
                         showAboutDialog(
                           context: context,
                           applicationName: 'CUET Medical Care',
@@ -89,6 +114,7 @@ class LandingPage extends StatelessWidget {
               ),
 
               // =========================================================
+              // >> NOTE: SECTION 2 - HERO BANNER: main eye-catching box with slogan, description and Sign Up / Login buttons.
               // HERO SECTION
               // =========================================================
               Padding(
@@ -97,6 +123,7 @@ class LandingPage extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
+                    // >> NOTE: BoxDecoration styling: blue gradient background, rounded corners (26) and a soft shadow.
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -135,6 +162,7 @@ class LandingPage extends StatelessWidget {
                       const SizedBox(height: 22),
 
                       const Text(
+                        // >> NOTE: Main slogan (big white text). \n makes a new line.
                         'Your Health.\nOur Priority.',
                         style: TextStyle(
                           color: Colors.white,
@@ -160,18 +188,23 @@ class LandingPage extends StatelessWidget {
                       const SizedBox(height: 24),
 
                       // =================================================
+                      // >> NOTE: HERO BUTTONS: the ONLY functional part of this page. Two buttons share the width equally (Expanded).
                       // HERO BUTTONS
                       // =================================================
                       Row(
                         children: [
+                          // >> NOTE: SIGN UP BUTTON (ElevatedButton = filled white = main action).
                           // SIGN UP
                           Expanded(
                             child: ElevatedButton(
+                              // >> NOTE: onPressed runs when the user taps.
                               onPressed: () {
+                                // >> NOTE: NAVIGATION: Navigator.push opens a NEW screen on top of this one (Back button returns here).
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
+                                        // >> NOTE: The screen to open: SignUpPage (imported from signup_page.dart). Firebase work starts there.
                                         const SignUpPage(),
                                   ),
                                 );
@@ -201,6 +234,7 @@ class LandingPage extends StatelessWidget {
 
                           const SizedBox(width: 12),
 
+                          // >> NOTE: LOGIN BUTTON (OutlinedButton = border only = secondary action).
                           // LOGIN
                           Expanded(
                             child: OutlinedButton(
@@ -209,6 +243,7 @@ class LandingPage extends StatelessWidget {
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
+                                        // >> NOTE: Opens LoginPage (imported from login_page.dart).
                                         const LoginPage(),
                                   ),
                                 );
@@ -243,6 +278,7 @@ class LandingPage extends StatelessWidget {
               ),
 
               // =========================================================
+              // >> NOTE: SECTION 3 - INTRODUCTION: heading 'Healthcare made simple' + one grey line of text (static).
               // INTRODUCTION
               // =========================================================
               const Padding(
@@ -276,16 +312,20 @@ class LandingPage extends StatelessWidget {
               const SizedBox(height: 18),
 
               // =========================================================
+              // >> NOTE: SECTION 4 - SERVICES GRID (2 x 2): four cards built with our reusable widget _ServiceCard (defined at the bottom of this file).
+              // >>       Each card gets its own icon, title, description and colours through the constructor.
               // SERVICES
               // =========================================================
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
+                    // >> NOTE: First row: AI Assistant + Appointments.
                     // FIRST ROW
                     Row(
                       children: [
                         Expanded(
+                          // >> NOTE: Using the reusable widget. We pass icon, title, description, iconColor and backgroundColor.
                           child: _ServiceCard(
                             icon: Icons.smart_toy_outlined,
                             title: 'AI Assistant',
@@ -315,6 +355,8 @@ class LandingPage extends StatelessWidget {
 
                     const SizedBox(height: 12),
 
+                    // >> NOTE: Second row: Medical Store + Doctors.
+                    // >>       Note: 'Medical Store' is only a description card here - no ordering screen is linked, so call it a planned feature if asked.
                     // SECOND ROW
                     Row(
                       children: [
@@ -352,6 +394,7 @@ class LandingPage extends StatelessWidget {
               const SizedBox(height: 30),
 
               // =========================================================
+              // >> NOTE: SECTION 5 - 'WHY CUET MEDICAL CARE?': white card with 3 feature rows.
               // WHY CUET MEDICAL CARE
               // =========================================================
               Padding(
@@ -380,6 +423,7 @@ class LandingPage extends StatelessWidget {
 
                       const SizedBox(height: 18),
 
+                      // >> NOTE: _FeatureRow = second reusable widget (icon on the left, title + description on the right). 'const' = created once, better performance.
                       const _FeatureRow(
                         icon: Icons.verified_user_outlined,
                         title: 'Trusted healthcare',
@@ -412,6 +456,7 @@ class LandingPage extends StatelessWidget {
               const SizedBox(height: 24),
 
               // =========================================================
+              // >> NOTE: SECTION 6 - EMERGENCY BOX: light red card to catch attention.
               // EMERGENCY SECTION
               // =========================================================
               Padding(
@@ -420,6 +465,7 @@ class LandingPage extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
+                    // >> NOTE: Light red background = warning style.
                     color: const Color(0xFFFFF2F2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
@@ -473,6 +519,8 @@ class LandingPage extends StatelessWidget {
                       ),
 
                       IconButton(
+                        // >> NOTE: PHONE BUTTON: shows a SnackBar (small message at the bottom).
+                        // >>       It only shows a reminder text - it does not dial a number.
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -495,6 +543,7 @@ class LandingPage extends StatelessWidget {
               const SizedBox(height: 30),
 
               // =========================================================
+              // >> NOTE: SECTION 7 - FOOTER: app name and tagline (static text).
               // FOOTER
               // =========================================================
               const Padding(
@@ -532,16 +581,20 @@ class LandingPage extends StatelessWidget {
 
 
 // =======================================================================
+// >> NOTE: REUSABLE WIDGET #1 (below): _ServiceCard
 // SERVICE CARD
 // =======================================================================
 
+// >> NOTE: _ServiceCard: one card design used 4 times with different data. '_' means private to this file.
 class _ServiceCard extends StatelessWidget {
+  // >> NOTE: FIELDS: the data this card needs. They are 'final' (cannot change after creation).
   final IconData icon;
   final String title;
   final String description;
   final Color iconColor;
   final Color backgroundColor;
 
+  // >> NOTE: CONSTRUCTOR: receives the values. 'required' = must be given when the widget is used.
   const _ServiceCard({
     required this.icon,
     required this.title,
@@ -552,6 +605,7 @@ class _ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // >> NOTE: Card UI: white rounded box with border -> Column of [coloured icon box, title, description].
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -607,9 +661,11 @@ class _ServiceCard extends StatelessWidget {
 
 
 // =======================================================================
+// >> NOTE: REUSABLE WIDGET #2 (below): _FeatureRow
 // FEATURE ROW
 // =======================================================================
 
+// >> NOTE: _FeatureRow: icon + title + description in one row. Used 3 times in the 'Why CUET Medical Care?' card.
 class _FeatureRow extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -623,6 +679,7 @@ class _FeatureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // >> NOTE: Row: icon box on the left, Expanded text column on the right.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
