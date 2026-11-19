@@ -1,7 +1,4 @@
-// ============================================================
-// SIDE NOTES ADDED FOR VIVA / DEMO.
-// Lines starting with  // >>  are explanation comments only.
-// The original code is unchanged.
+
 //
 // FILE FLOW: initState -> 3 Firestore loads -> setState -> UI cards
 //   -> buttons open other screens / cancel / PDF download
