@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "259846230172",
+    "project_id": "cuet-smart-medical-store",
+    "storage_bucket": "cuet-smart-medical-store.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:259846230172:android:492fc8e2dc6539c8ed1d59",
+        "android_client_info": {
+          "package_name": "com.example.smart_medical_store"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "259846230172-0jbg8amuo2eqkku1t55q1mng5cj21n19.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiVtuY7IWkno_Ru6kAe1_Ci6eMvUL4azE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "259846230172-0jbg8amuo2eqkku1t55q1mng5cj21n19.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
