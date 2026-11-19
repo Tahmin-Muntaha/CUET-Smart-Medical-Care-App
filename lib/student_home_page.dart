@@ -1,4 +1,13 @@
 // ============================================================
+// SIDE NOTES ADDED FOR VIVA / DEMO.
+// Lines starting with  // >>  are explanation comments only.
+// The original code is unchanged.
+//
+// FILE FLOW: initState -> 3 Firestore loads -> setState -> UI cards
+//   -> buttons open other screens / cancel / PDF download
+// ============================================================
+
+// ============================================================
 // student_home.dart
 //
 // NOTE ON NEW DEPENDENCIES
@@ -27,6 +36,8 @@ import 'find_doctors.dart';
 import 'chat_list_page.dart';
 import 'symptom_check_page.dart';
 
+// >> NOTE: SCREEN: Student dashboard (first screen after student login).
+// >>       StatefulWidget because the screen data changes (appointments, tips, loading) -> we use setState().
 class StudentHome extends StatefulWidget {
   const StudentHome({super.key});
 
@@ -34,11 +45,14 @@ class StudentHome extends StatefulWidget {
   State<StudentHome> createState() => _StudentHomeState();
 }
 
+// >> NOTE: STATE CLASS: holds all variables and logic of the dashboard.
 class _StudentHomeState extends State<StudentHome> {
+  // >> NOTE: LOADING FLAGS: true until Firebase data arrives -> screen shows a spinner meanwhile.
   bool loadingProfile = true;
   bool loadingAppointment = true;
   bool loadingMedicalHistory = true;
 
+  // >> NOTE: PROFILE VARIABLES: filled from Firestore 'users' collection (backend data).
   String studentName = '';
   String studentId = '';
   String session = '';
@@ -49,12 +63,15 @@ class _StudentHomeState extends State<StudentHome> {
   String bloodGroup = 'Not set';
   String hall = 'Not set';
 
+  // >> NOTE: LISTS: each Firestore document is stored as a Map. 'appointments' = booked, 'medicalHistory' = completed.
   List<Map<String, dynamic>> appointments = [];
   List<Map<String, dynamic>> medicalHistory = [];
 
+  // >> NOTE: HEALTH TIP: index of the tip being shown + a timer that changes it automatically.
   int healthTipIndex = 0;
   Timer? healthTipTimer;
 
+  // >> NOTE: Local fixed data (NOT from backend). Each tip has a title and a text.
   final List<Map<String, String>> healthTips = [
     {
       'title': 'Stay Hydrated',
@@ -99,6 +116,8 @@ class _StudentHomeState extends State<StudentHome> {
   ];
 
   @override
+  // >> NOTE: initState(): runs ONCE when the screen opens.
+  // >>       It starts 3 backend loads (profile, appointments, history) and the health-tip timer.
   void initState() {
     super.initState();
 
@@ -109,6 +128,7 @@ class _StudentHomeState extends State<StudentHome> {
   }
 
   @override
+  // >> NOTE: dispose(): cleanup when leaving the screen. Cancel timer to avoid memory leak.
   void dispose() {
     healthTipTimer?.cancel();
     healthTipTimer = null;
@@ -119,6 +139,8 @@ class _StudentHomeState extends State<StudentHome> {
   // HEALTH TIP TIMER
   // ============================================================
 
+  // >> NOTE: TIMER: every 10 seconds the tip index moves to the next one.
+  // >>       (index + 1) % length -> goes back to 0 after the last tip. setState() redraws the screen.
   void _startHealthTipRotation() {
     healthTipTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (!mounted) {
@@ -144,6 +166,9 @@ class _StudentHomeState extends State<StudentHome> {
   // LOAD STUDENT PROFILE
   // ============================================================
 
+  // >> NOTE: BACKEND #1 - LOAD PROFILE
+  // >>       Flow: get logged-in user -> read users/{uid} from Firestore -> save fields in variables -> setState().
+  // >>       '?? Not set' = default value if the field is missing.
   Future<void> _loadStudentProfile() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -158,6 +183,7 @@ class _StudentHomeState extends State<StudentHome> {
     }
 
     try {
+      // >> NOTE: Reads ONE document: collection 'users' -> document with this student's uid.
       final doc =
           await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
@@ -213,6 +239,8 @@ class _StudentHomeState extends State<StudentHome> {
   // LOAD ALL BOOKED APPOINTMENTS
   // ============================================================
 
+  // >> NOTE: BACKEND #2 - LOAD UPCOMING APPOINTMENTS
+  // >>       Flow: query Firestore -> convert docs to list -> sort by date -> setState().
   Future<void> _loadAppointments() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -229,6 +257,7 @@ class _StudentHomeState extends State<StudentHome> {
 
     try {
       final snapshot = await FirebaseFirestore.instance
+          // >> NOTE: Query: appointments of THIS student with status = 'booked' (cancelled/completed are excluded).
           .collection('appointments')
           .where('studentUid', isEqualTo: user.uid)
           .where('status', isEqualTo: 'booked')
@@ -237,9 +266,11 @@ class _StudentHomeState extends State<StudentHome> {
       final List<Map<String, dynamic>> loaded = [];
 
       for (final doc in snapshot.docs) {
+        // >> NOTE: Adds document id + all its fields into one Map (the ... is the spread operator).
         loaded.add({'id': doc.id, ...doc.data()});
       }
 
+      // >> NOTE: Sort so the earliest appointment comes first.
       loaded.sort((a, b) {
         final dateA = _getAppointmentDateTime(a);
         final dateB = _getAppointmentDateTime(b);
@@ -257,6 +288,7 @@ class _StudentHomeState extends State<StudentHome> {
         appointments = loaded;
         loadingAppointment = false;
       });
+    // >> NOTE: ERROR HANDLING: Firebase errors are caught and a message is shown instead of crashing.
     } on FirebaseException catch (e) {
       debugPrint('Failed to load appointments: ${e.code} - ${e.message}');
 
@@ -286,6 +318,8 @@ class _StudentHomeState extends State<StudentHome> {
   // LOAD COMPLETED APPOINTMENTS (MEDICAL HISTORY)
   // ============================================================
 
+  // >> NOTE: BACKEND #3 - LOAD MEDICAL HISTORY
+  // >>       Same query as above but status = 'completed'. Sorted NEWEST first (b compared to a).
   Future<void> _loadMedicalHistory() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -347,6 +381,7 @@ class _StudentHomeState extends State<StudentHome> {
   // GET APPOINTMENT DATE/TIME
   // ============================================================
 
+  // >> NOTE: HELPER: builds a real DateTime from dateKey ('2026-09-04') + time ('10:00 AM') so we can sort.
   DateTime? _getAppointmentDateTime(Map<String, dynamic> data) {
     try {
       final dateKey = data['dateKey']?.toString() ?? '';
@@ -389,6 +424,7 @@ class _StudentHomeState extends State<StudentHome> {
   // Supports: 10:00 AM / 10.00 AM / 10:00AM / 10.00AM
   // ============================================================
 
+  // >> NOTE: HELPER: converts text like '10:00 AM' to 24-hour time using a regular expression (RegExp).
   TimeOfDay? _parseTime(String value) {
     try {
       var cleaned = value.trim().replaceAll('.', ':');
@@ -420,6 +456,7 @@ class _StudentHomeState extends State<StudentHome> {
   // FORMAT DATE
   // ============================================================
 
+  // >> NOTE: HELPER: changes 2026-09-04 into 04/09/2026 for display.
   String _formatDate(String dateKey) {
     try {
       final parts = dateKey.split('-');
@@ -434,6 +471,8 @@ class _StudentHomeState extends State<StudentHome> {
   // BOOK APPOINTMENT
   // ============================================================
 
+  // >> NOTE: NAVIGATION + RESULT: opens the booking page and WAITS (await) for its result.
+  // >>       If booking succeeded, reload appointments and show a success message.
   Future<void> openBookAppointment() async {
     final result = await Navigator.push<AppointmentResult>(
       context,
@@ -453,6 +492,7 @@ class _StudentHomeState extends State<StudentHome> {
   // FIND DOCTORS
   // ============================================================
 
+  // >> NOTE: Simple navigation functions: each one opens another screen with Navigator.push.
   void openFindDoctors() {
     Navigator.push(
       context,
@@ -464,6 +504,7 @@ class _StudentHomeState extends State<StudentHome> {
   // MEDICAL HISTORY (FULL PAGE)
   // ============================================================
 
+  // >> NOTE: Opens the full medical history page and passes student name and ID to it.
   void openMedicalRecords() {
     Navigator.push(
       context,
@@ -502,6 +543,7 @@ class _StudentHomeState extends State<StudentHome> {
   // AI SYMPTOM CHECK (real Gemini chatbot)
   // ============================================================
 
+  // >> NOTE: Opens the Gemini AI chatbot page.
   void openSymptomCheck() {
     Navigator.push(
       context,
@@ -524,6 +566,7 @@ class _StudentHomeState extends State<StudentHome> {
   // DOWNLOAD PRESCRIPTION PDF (from dashboard preview)
   // ============================================================
 
+  // >> NOTE: Calls the shared PDF function (defined near the bottom of this file).
   Future<void> _downloadPrescriptionPdf(Map<String, dynamic> record) async {
     await downloadPrescriptionPdf(
       context,
@@ -541,6 +584,9 @@ class _StudentHomeState extends State<StudentHome> {
   // ONLY AFTER THAT DO WE PERFORM UPDATE/DELETE WRITES.
   // ============================================================
 
+  // >> NOTE: BACKEND #4 - CANCEL APPOINTMENT (important)
+  // >>       Flow: confirm dialog -> check login -> TRANSACTION { read appointment -> verify owner & status -> read slot -> write 'cancelled' -> delete slot lock } -> reload list.
+  // >>       Rule used: all reads first, then writes (Firestore transaction rule).
   Future<void> cancelAppointment(Map<String, dynamic> appointment) async {
     final appointmentId = appointment['id']?.toString() ?? '';
 
@@ -549,6 +595,7 @@ class _StudentHomeState extends State<StudentHome> {
       return;
     }
 
+    // >> NOTE: Confirmation popup. Returns true (Yes) or false (No).
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -590,6 +637,7 @@ class _StudentHomeState extends State<StudentHome> {
       final db = FirebaseFirestore.instance;
       final appointmentRef = db.collection('appointments').doc(appointmentId);
 
+      // >> NOTE: TRANSACTION = all-or-nothing. Either every step succeeds or nothing changes (keeps data safe).
       await db.runTransaction((transaction) async {
         // READ #1: APPOINTMENT
         final appointmentSnapshot = await transaction.get(appointmentRef);
@@ -606,12 +654,14 @@ class _StudentHomeState extends State<StudentHome> {
 
         final studentUid = data['studentUid']?.toString() ?? '';
 
+        // >> NOTE: SECURITY CHECK: a student can cancel only their OWN appointment.
         if (studentUid != user.uid) {
           throw Exception('You cannot cancel this appointment.');
         }
 
         final currentStatus = data['status']?.toString() ?? '';
 
+        // >> NOTE: Only 'booked' appointments can be cancelled (not completed or already cancelled).
         if (currentStatus != 'booked') {
           throw Exception('Only booked appointments can be cancelled.');
         }
@@ -644,6 +694,7 @@ class _StudentHomeState extends State<StudentHome> {
         }
 
         // NOW START WRITES
+        // >> NOTE: WRITE: set status to 'cancelled' and save who/when (serverTimestamp = Firebase server time).
         transaction.update(appointmentRef, {
           'status': 'cancelled',
           'cancelledAt': FieldValue.serverTimestamp(),
@@ -658,6 +709,7 @@ class _StudentHomeState extends State<StudentHome> {
           final slotStudentUid = slotData?['studentUid']?.toString();
 
           if (slotAppointmentId == appointmentId && slotStudentUid == user.uid) {
+            // >> NOTE: Deletes the slot lock so another student can book this time again.
             transaction.delete(slotRef);
           }
         }
@@ -675,6 +727,7 @@ class _StudentHomeState extends State<StudentHome> {
 
       if (!mounted) return;
 
+      // >> NOTE: Shows a clear message depending on the Firebase error code (permission-denied, not-found, ...).
       switch (e.code) {
         case 'permission-denied':
           _showMessage('Cancellation denied by Firestore rules.');
@@ -715,6 +768,8 @@ class _StudentHomeState extends State<StudentHome> {
   // SLOT LOCK ID (MUST MATCH book_appointment.dart)
   // ============================================================
 
+  // >> NOTE: SLOT LOCK ID = doctorId_date_time. MUST match the one created in book_appointment.dart,
+  // >>       so the booking and cancel code find the same slot document.
   static String _buildSlotLockId({
     required String doctorUid,
     required String dateKey,
@@ -734,6 +789,8 @@ class _StudentHomeState extends State<StudentHome> {
   // EMERGENCY INFORMATION
   // ============================================================
 
+  // >> NOTE: Opens a dialog to enter blood group and hall. The dialog saves to Firestore and returns the values,
+  // >>       then setState() updates the card on screen.
   Future<void> _openEmergencyDetails() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -768,6 +825,7 @@ class _StudentHomeState extends State<StudentHome> {
   // SNACKBAR
   // ============================================================
 
+  // >> NOTE: HELPER: shows a floating SnackBar message. 'mounted' check avoids using a closed screen.
   void _showMessage(String message) {
     if (!mounted) return;
 
@@ -786,6 +844,7 @@ class _StudentHomeState extends State<StudentHome> {
   // LOGOUT
   // ============================================================
 
+  // >> NOTE: LOGOUT: FirebaseAuth.signOut() then go to login and remove all old screens (can't press back).
   Future<void> logout() async {
     try {
       await FirebaseAuth.instance.signOut();
@@ -807,6 +866,8 @@ class _StudentHomeState extends State<StudentHome> {
   // ============================================================
 
   @override
+  // >> NOTE: BUILD (UI): if still loading show spinner, otherwise draw the dashboard.
+  // >>       Layout: AppBar + scrollable Column of sections (welcome, quick actions, appointments, history, tip, emergency).
   Widget build(BuildContext context) {
     if (loadingProfile || loadingAppointment) {
       return const Scaffold(
@@ -816,6 +877,7 @@ class _StudentHomeState extends State<StudentHome> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
+      // >> NOTE: Top blue bar with app name, notification button and logout button.
       appBar: AppBar(
         backgroundColor: const Color(0xFF003D9B),
         foregroundColor: Colors.white,
@@ -852,6 +914,8 @@ class _StudentHomeState extends State<StudentHome> {
               const SizedBox(height: 10),
               _buildQuickActions(),
               const SizedBox(height: 24),
+              // >> NOTE: RESPONSIVE: screen width < 800 (phone) -> one column.
+              // >>       Wide screen (tablet/web) -> two columns side by side.
               LayoutBuilder(
                 builder: (context, constraints) {
                   if (constraints.maxWidth < 800) {
@@ -906,6 +970,7 @@ class _StudentHomeState extends State<StudentHome> {
   // WELCOME BANNER
   // ============================================================
 
+  // >> NOTE: UI: greeting card. Takes first name from full name: split(' ').first. Has 'Ask SmartCare AI' button.
   Widget _buildWelcomeBanner() {
     final firstName =
         studentName.trim().isEmpty ? 'Student' : studentName.trim().split(' ').first;
@@ -954,6 +1019,7 @@ class _StudentHomeState extends State<StudentHome> {
   // QUICK ACTIONS
   // ============================================================
 
+  // >> NOTE: UI: 2-column grid of shortcut buttons. Each button is linked to one of the open...() functions above.
   Widget _buildQuickActions() {
     return GridView.count(
       crossAxisCount: 2,
@@ -992,6 +1058,7 @@ class _StudentHomeState extends State<StudentHome> {
     );
   }
 
+  // >> NOTE: Reusable button widget: icon + title + onTap. InkWell gives the tap effect.
   Widget _quickAction(String title, IconData icon, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -1023,6 +1090,7 @@ class _StudentHomeState extends State<StudentHome> {
   // UPCOMING APPOINTMENTS
   // ============================================================
 
+  // >> NOTE: UI: list of booked appointments. If the list is empty show an 'empty' card, otherwise show one card per appointment (.map).
   Widget _buildUpcomingAppointments() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1065,6 +1133,8 @@ class _StudentHomeState extends State<StudentHome> {
   // APPOINTMENT CARD
   // ============================================================
 
+  // >> NOTE: UI: one appointment card. Reads values from the Map with fallbacks (a ?? b ?? default).
+  // >>       Shows status, queue token, doctor, date, time, room and the Cancel button (calls cancelAppointment).
   Widget _buildAppointmentCard(Map<String, dynamic> appointment) {
     final doctor = appointment['doctorName']?.toString() ?? 'Doctor';
 
@@ -1185,6 +1255,7 @@ class _StudentHomeState extends State<StudentHome> {
   // APPOINTMENT INFO ROW
   // ============================================================
 
+  // >> NOTE: Reusable row: icon + label + value.
   Widget _appointmentInfoRow(IconData icon, String title, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1209,6 +1280,7 @@ class _StudentHomeState extends State<StudentHome> {
   // MEDICAL HISTORY (dashboard preview card)
   // ============================================================
 
+  // >> NOTE: UI: medical history preview. Shows spinner / empty message / latest 3 records (.take(3)). 'View All' opens full page.
   Widget _buildMedicalHistory() {
     return Container(
       width: double.infinity,
@@ -1271,6 +1343,7 @@ class _StudentHomeState extends State<StudentHome> {
     );
   }
 
+  // >> NOTE: One history row with a PDF download button for the prescription.
   Widget _medicalHistoryPreviewTile(Map<String, dynamic> record) {
     final diagnosis = record['diagnosis']?.toString() ??
         record['problem']?.toString() ??
@@ -1312,6 +1385,7 @@ class _StudentHomeState extends State<StudentHome> {
   // HEALTH TIP
   // ============================================================
 
+  // >> NOTE: UI: shows the current tip from the list. Refresh button changes it manually.
   Widget _buildHealthTip() {
     final tip = healthTips[healthTipIndex];
 
@@ -1364,6 +1438,7 @@ class _StudentHomeState extends State<StudentHome> {
   // EMERGENCY CARD
   // ============================================================
 
+  // >> NOTE: UI: blue card with blood group, ID, phone and hall. Tap to edit (opens the emergency dialog).
   Widget _buildEmergencyCard() {
     return InkWell(
       onTap: _openEmergencyDetails,
@@ -1426,6 +1501,7 @@ class _StudentHomeState extends State<StudentHome> {
   // EMPTY SECTION
   // ============================================================
 
+  // >> NOTE: Reusable 'nothing here yet' card with an action button.
   Widget _emptySection(
     IconData icon,
     String title,
@@ -1459,6 +1535,7 @@ class _StudentHomeState extends State<StudentHome> {
   // SECTION TITLE
   // ============================================================
 
+  // >> NOTE: Reusable small grey heading text.
   Widget _sectionTitle(String title) {
     return Text(
       title,
@@ -1471,6 +1548,7 @@ class _StudentHomeState extends State<StudentHome> {
 // EMERGENCY DETAILS DIALOG
 // ============================================================
 
+// >> NOTE: EMERGENCY DIALOG: separate widget with 2 text fields (blood group, hall) and a Save button.
 class _EmergencyDetailsDialog extends StatefulWidget {
   final String initialBloodGroup;
   final String initialHall;
@@ -1487,6 +1565,7 @@ class _EmergencyDetailsDialog extends StatefulWidget {
 }
 
 class _EmergencyDetailsDialogState extends State<_EmergencyDetailsDialog> {
+  // >> NOTE: Controllers read/write the text typed in the text fields. They are disposed in dispose().
   late final TextEditingController bloodController;
   late final TextEditingController hallController;
 
@@ -1507,6 +1586,8 @@ class _EmergencyDetailsDialogState extends State<_EmergencyDetailsDialog> {
     super.dispose();
   }
 
+  // >> NOTE: BACKEND #5 - SAVE EMERGENCY INFO
+  // >>       Flow: validate (not empty) -> saving = true (disable button) -> write to Firestore -> close dialog and return values.
   Future<void> _save() async {
     if (saving) return;
 
@@ -1532,6 +1613,7 @@ class _EmergencyDetailsDialogState extends State<_EmergencyDetailsDialog> {
           'bloodGroup': blood,
           'hall': hallName,
         },
+        // >> NOTE: merge: true = update only these 2 fields, do NOT delete the other profile fields.
         SetOptions(merge: true),
       );
 
@@ -1629,11 +1711,14 @@ class _EmergencyDetailsDialogState extends State<_EmergencyDetailsDialog> {
 // PDF GENERATION HELPERS (shared across screens)
 // ============================================================
 
+// >> NOTE: PDF GENERATION (packages: pdf + printing)
+// >>       Step 1: read the record Map safely  ->  Step 2: build pages with pw widgets  ->  Step 3: doc.save() gives PDF bytes.
 Future<Uint8List> buildPrescriptionPdfBytes({
   required Map<String, dynamic> record,
   required String studentName,
   required String studentId,
 }) async {
+  // >> NOTE: Creates an empty PDF document.
   final doc = pw.Document();
 
   final diagnosis =
@@ -1668,6 +1753,7 @@ Future<Uint8List> buildPrescriptionPdfBytes({
           .toList()
       : <Map<String, dynamic>>[];
 
+  // >> NOTE: Adds a page. MultiPage automatically continues on a new page if content is long.
   doc.addPage(
     pw.MultiPage(
       build: (context) => [
@@ -1804,9 +1890,11 @@ Future<Uint8List> buildPrescriptionPdfBytes({
     ),
   );
 
+  // >> NOTE: Returns the finished PDF as bytes (Uint8List).
   return doc.save();
 }
 
+// >> NOTE: Builds the PDF and shares/saves it. Used from several screens (dashboard, history, report).
 Future<void> downloadPrescriptionPdf(
   BuildContext context, {
   required Map<String, dynamic> record,
@@ -1822,6 +1910,7 @@ Future<void> downloadPrescriptionPdf(
 
     final refId = record['id']?.toString() ?? 'prescription';
 
+    // >> NOTE: Opens the phone's share/save dialog with the PDF file named prescription_<id>.pdf.
     await Printing.sharePdf(bytes: bytes, filename: 'prescription_$refId.pdf');
   } catch (e) {
     debugPrint('Failed to generate PDF: $e');
@@ -1839,6 +1928,7 @@ Future<void> downloadPrescriptionPdf(
 // EmptyMedicalRecordsPage)
 // ============================================================
 
+// >> NOTE: SCREEN: Full medical history. Loads completed appointments, has search, report popup and PDF download.
 class MedicalHistoryPage extends StatefulWidget {
   final String studentName;
   final String studentId;
@@ -1856,6 +1946,7 @@ class MedicalHistoryPage extends StatefulWidget {
 class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
   bool loading = true;
   List<Map<String, dynamic>> records = [];
+  // >> NOTE: Text typed in the search box. Changing it redraws the list.
   String searchQuery = '';
 
   @override
@@ -1864,6 +1955,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     _loadRecords();
   }
 
+  // >> NOTE: BACKEND: same Firestore query as dashboard history (studentUid + status 'completed'), sorted newest first.
   Future<void> _loadRecords() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -1919,6 +2011,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     }
   }
 
+  // >> NOTE: LOCAL SEARCH: filters the already-loaded list by diagnosis, doctor, date or complaint (no new database call).
   List<Map<String, dynamic>> get filteredRecords {
     if (searchQuery.trim().isEmpty) return records;
 
@@ -1948,6 +2041,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
         title: const Text('Medical History', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
+        // >> NOTE: Pull-down-to-refresh: calls _loadRecords again.
         child: RefreshIndicator(
           onRefresh: _loadRecords,
           child: SingleChildScrollView(
@@ -1994,6 +2088,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
         ),
         const SizedBox(height: 16),
         TextField(
+          // >> NOTE: LIVE SEARCH: every typed letter updates searchQuery -> list is filtered instantly.
           onChanged: (value) => setState(() => searchQuery = value),
           decoration: InputDecoration(
             hintText: 'Search records or diagnoses...',
@@ -2044,6 +2139,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     );
   }
 
+  // >> NOTE: UI: one record card with date, diagnosis, doctor, 'View Full Report' and PDF buttons.
   Widget _buildRecordCard(Map<String, dynamic> record) {
     final diagnosis =
         record['diagnosis']?.toString() ?? record['problem']?.toString() ?? 'Consultation';
@@ -2195,6 +2291,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     );
   }
 
+  // >> NOTE: Opens the full prescription report as a popup dialog: header + scrollable body + footer.
   void _showMedicalReport(Map<String, dynamic> record) {
     showDialog(
       context: context,
@@ -2265,6 +2362,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     );
   }
 
+  // >> NOTE: Report content. Each part (vitals, complaint, medicines, tests, advice, follow-up) is shown only if data exists.
   Widget _buildReportBody(Map<String, dynamic> record) {
     final vitalsRaw = record['vitals'];
     final vitalsMap =
@@ -2482,6 +2580,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     );
   }
 
+  // >> NOTE: Medicine table: Medicine | Dosage | Duration (+ timing and instructions).
   Widget _buildPrescriptionList(List<Map<String, dynamic>> prescriptions) {
     if (prescriptions.isEmpty) {
       return const Text(
@@ -2627,6 +2726,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
 // Notices" dashboard section)
 // ============================================================
 
+// >> NOTE: SCREEN: Announcements posted by admin. Students see only audience 'All' or 'Student'.
 class AnnouncementsPage extends StatefulWidget {
   const AnnouncementsPage({super.key});
 
@@ -2660,6 +2760,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
   // "Student"), most recent first.
   // ============================================================
 
+  // >> NOTE: BACKEND: tries a server-side filtered query first; if Firestore needs an index it falls back to client-side filtering.
   Future<void> _loadAnnouncements() async {
     try {
       List<Map<String, dynamic>> loaded;
@@ -2674,6 +2775,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
         // will work going forward.
         final snapshot = await FirebaseFirestore.instance
             .collection('announcements')
+            // >> NOTE: whereIn = audience is 'All' OR 'Student'. orderBy timestamp descending = newest first.
             .where('audience', whereIn: _visibleAudiences)
             .orderBy('timestamp', descending: true)
             .get();
@@ -2682,6 +2784,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
       } catch (e) {
         // Fallback: fetch everything and filter/sort on the client
         // (works immediately, no index required).
+        // >> NOTE: FALLBACK: download all announcements, then filter and sort inside the app (works without an index).
         debugPrint('Falling back to client-side announcement filtering: $e');
 
         final snapshot = await FirebaseFirestore.instance.collection('announcements').get();
@@ -2741,6 +2844,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
     return '${date.day} ${months[date.month - 1]} ${date.year}, $hour12:$minute $period';
   }
 
+  // >> NOTE: Colour of the priority badge: urgent = red, high = orange, others = teal.
   Color _priorityColor(String priority) {
     switch (priority.toLowerCase()) {
       case 'urgent':
@@ -2786,6 +2890,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
                       ),
                     ],
                   )
+                // >> NOTE: Scrollable list of announcement cards with spacing between them.
                 : ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
@@ -2894,6 +2999,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
 // DEMO FEATURE PAGE
 // ============================================================
 
+// >> NOTE: Placeholder screen used for 'Notifications' (feature not built yet - just shows title and icon).
 class DemoFeaturePage extends StatelessWidget {
   final String title;
   final IconData icon;
